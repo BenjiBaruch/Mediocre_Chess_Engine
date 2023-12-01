@@ -8,6 +8,11 @@ public class PieceManager : MonoBehaviour
     PieceObject[] pieces;
     public Sprite[] pieceSprites;
     public GameObject Prefab;
+    bool mouseDrag = false;
+    #nullable enable
+    PieceObject? selectedPiece;
+    #nullable disable
+    Vector3 mouseOffset = new Vector3(0, 0, 0);
 
     // Start is called before the first frame update
     void Start()
@@ -39,6 +44,37 @@ public class PieceManager : MonoBehaviour
             PieceObject piece = (PieceObject) ScriptableObject.CreateInstance(typeof(PieceObject));
             piece.SetParams(i, board[i], sprite, instance);
             pieces[j++] = piece;
+        }
+    }
+
+    void Update() {
+        // Help from https://docs.unity3d.com/ScriptReference/Input.GetMouseButton.html
+        // Help from https://docs.unity3d.com/ScriptReference/Input-mousePosition.html
+        if (Input.GetMouseButton(0)) {
+            Debug.Log(Input.mousePosition);
+            if (mouseDrag) {
+                if (selectedPiece != null) {
+                    selectedPiece.SetPosition(Input.mousePosition + mouseOffset);
+                }
+            } else {
+                mouseDrag = true;
+                int mouseTile = PieceObject.PositionFromCoords(Input.mousePosition);
+                if (mouseTile > -1) {
+                    selectedPiece = null;
+                    foreach (PieceObject p in pieces) {
+                        if (p.Position == mouseTile) {
+                            selectedPiece = p;
+                            mouseOffset = Input.mousePosition - p.Coords;
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if (mouseDrag) {
+            mouseDrag = false;
+            if (selectedPiece != null) {
+                selectedPiece.PlacePiece(Input.mousePosition + mouseOffset);
+            }
         }
     }
 }
