@@ -10,10 +10,11 @@ public readonly struct Move
     // - Bits 0-3 represent move type (T)
     // - Bits 4-9 represent destination tile (D)
     // - Bits 10-15 represent starting tile (S)
-    // ushort format: TTTTDDDDDDSSSSSS
+    // ushort bit-wise format: TTTTDDDDDDSSSSSS
 
-    readonly ushort value;
+    readonly ushort value; // Stores all move information
 
+    // Move type flags
     public const int TypeNormal = 0;
     public const int TypeCastle = 1;
     public const int TypeEnPassant = 2;
@@ -28,6 +29,7 @@ public readonly struct Move
     public const int TypeCaptureRook = 14;
     public const int TypeCaptureQueen = 15;
 
+    // Masks determines which bits of value represent what information about move
     const ushort typeMask = 0b1111 << 12;
     const ushort destMask = 0b111111 << 6;
     const ushort startMask = 0b111111;
@@ -37,16 +39,18 @@ public readonly struct Move
         value = (ushort)(type << 12 | dest << 6 | start);
     }
     
-
+    // Position properties
     public int Start => value & startMask;
     public int StartCol => value & 0b111;
     public int StartRow => (value & startMask) >> 3;
     public int Dest => (value & destMask) >> 6;
     public int DestCol => (value & 0b111000000) >> 6;
     public int DestRow => (value & destMask) >> 9;
+    // Type property
     public int Type => value >> 12;
     public ushort Value => value;
     
+    // More properties
     public bool IsPromotion { get { return Type > 3 && Type < 8; } }
     public bool IsNull { get { return value == 0; } }
     public bool IsEnPassant { get { return Type == TypeEnPassant; } }

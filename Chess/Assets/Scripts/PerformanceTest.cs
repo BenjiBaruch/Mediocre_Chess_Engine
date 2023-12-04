@@ -51,7 +51,7 @@ class PerformanceTest {
         }
         foreach (Move m in moves) {
             nodes[i]++;
-            if (b.board[m.Dest] != 0 || m.IsEnPassant) captures[i]++;
+            if (b.IntBoard[m.Dest] != 0 || m.IsEnPassant) captures[i]++;
             if (m.IsEnPassant) epCaptures[i]++;
             if (m.IsCastle) castles[i]++;
             if (m.IsPromotion) promotions[i]++;

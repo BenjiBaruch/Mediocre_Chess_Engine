@@ -7,23 +7,36 @@ using System.Security.Cryptography;
 
 sealed class Board
 {
+    // Stores letters that represent different files
     public static readonly char[] LetterCodes = new char[] {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
-    public int[] board { get; }
+    // Stores integer representation of board.
+    public int[] IntBoard { get; }
+    // Stores information about whose turn it is
     public bool WhiteToMove { get; set; }
     public int ColorToMove { get; set; }
     public int OpponentColor { get; set; }
-    public int StateData; // Format: HHHHHHLLLLPPPPPCCCC, H = halfmoveClock, L = pawnLeapFile, P = capturedPiece, C = castlingRights
+    // Stores information about current board state
+    // Bit-wise Format: HHHHHHLLLLPPPPPCCCC, 
+    // * H = halfmoveClock, 
+    // * L = pawnLeapFile, 
+    // * P = capturedPiece, 
+    // * C = castlingRights
+    public int StateData;
+    // Contains history of the state data from all previous states (moves) in a game
     public Stack<int> StateHistory { get; }
-
+    // Current state data:
     int halfmoveClock;
     int pawnLeapFile; // 0 is A File, 7 is H file, 8 is no pawn leap
     int capturedPiece;
     int castlingRights; // Format: KQkq
+    // castlingRights bitwise masks:
     const int WKCastleMask = 0b1000; // White Kingside Castle Mask
     const int WQCastleMask = 0b0100; // White Queenside Castle Mask
     const int BKCastleMask = 0b0010; // Black Kingside Castle Mask
     const int BQCastleMask = 0b0001; // Black Queenside Castle Mask
+    // King indices:
     int kingIndex, wkIndex, bkIndex;
+    // Contains all the ways a chess game can end, plus "Running" for a game that has not ended.
     public enum Status{
         Running,
         WinByCheckmate,
@@ -37,13 +50,13 @@ sealed class Board
         DrawByAgreement,
         Terminated
     }
-
-
-    List<Move> moveList; // List of legal moves in a given position
+    // List of legal moves in current position
+    List<Move> moveList; 
 
     public Board()
     {
-        board = StartingBoard();
+        // Sets all variables for new starting game
+        IntBoard = StartingBoard();
         moveList = new List<Move>(50);
         WhiteToMove = true;
         ColorToMove = Piece.White;
@@ -57,10 +70,17 @@ sealed class Board
     }
 
     public Board(int[] boardArray) : this() {
-        board = boardArray;
+        /*
+        In C#, if a method contains another method in its signature (in this case "this()),
+        The method inherits from another. In this case, that means all code from first constructor
+        is ran before this one, and this can access all local variables from the previous
+        */
+        // Starts game from inputted board, no state history (used for training and puzzles)
+        IntBoard = boardArray;
     }
     
     public static int[] StartingBoard() {
+        // Returns initial board position
         int[] b = new int[64];
         b[0] = b[7] = Piece.White | Piece.Rook;
         b[1] = b[6] = Piece.White | Piece.Knight;
@@ -80,12 +100,24 @@ sealed class Board
     }
 
     public static Board BoardFromIntArray(int[] boardArray) {
+        // Creates Board object from int array representation
+        // Blank state history
         return new Board(boardArray);
     }
 
     public Status GameStatus() {
+        // Checks if a game is finished.
+        /*
+        Current problems with method:
+          * For checkmate and stalemate checks, the computer checks if any move results in check
+            instead of all moves
+          * Does not check repetition, timeout, or insufficient material
+        */
+        // If halfmove clock exceeds 50 (meaning no significant moves have occured in the past 25 moves)
+        // Then return a Draw
         if (halfmoveClock >= 50)
             return Status.DrawBy50MoveRule;
+        // Get all moves in the current position, including moves that result in check
         PseudoLegalMoves();
         Move[] moves = new Move[moveList.Count];
         moveList.CopyTo(moves);
@@ -94,15 +126,21 @@ sealed class Board
             DoMove(move);
             if (IsCheck()) {
                 if (isThreatened)
-                    return Status.WinByResignation;
+                    // If all moves available result in check, and king is currently in check
+                    // Other side wins by checkmate
+                    return Status.WinByCheckmate;
                 else
+                    // If all moves available result in check, but king is not currently in check,
+                    // Its a draw by stalemate
                     return Status.DrawByStalemate;
             }
             UndoMove(move);
         }
+        // If no previous end conditions were met, game is still running
         return Status.Running;
     }
     public bool IsCheck() {
+        // Checks if king is currently in check
         PseudoLegalMoves();
         foreach(Move move in moveList) {
             if (move.Dest == (OpponentColor == Piece.White ? wkIndex : bkIndex))
@@ -117,8 +155,8 @@ sealed class Board
         int dest = move.Dest;
         int type = move.Type;
 
-        int movingPiece = Piece.Type(board[start]);
-        int movingColor = Piece.Color(board[start]);
+        int movingPiece = Piece.Type(IntBoard[start]);
+        int movingColor = Piece.Color(IntBoard[start]);
 
         if (movingPiece == Piece.King) {
             if (movingColor == Piece.White) wkIndex = dest;
@@ -136,21 +174,21 @@ sealed class Board
         if (move.IsPromotion)
         {
             halfmoveClock = 0;
-            board[start] = 0;
-            capturedPiece = board[dest];
+            IntBoard[start] = 0;
+            capturedPiece = IntBoard[dest];
             switch (type)
             {
                 case Move.TypePromoteToQueen:
-                    board[dest] = Piece.Queen | movingColor;
+                    IntBoard[dest] = Piece.Queen | movingColor;
                     break;
                 case Move.TypePromoteToKnight:
-                    board[dest] = Piece.Knight | movingColor;
+                    IntBoard[dest] = Piece.Knight | movingColor;
                     break;
                 case Move.TypePromoteToBishop:
-                    board[dest] = Piece.Bishop | movingColor;
+                    IntBoard[dest] = Piece.Bishop | movingColor;
                     break;
                 case Move.TypePromoteToRook:
-                    board[dest] = Piece.Rook | movingColor;
+                    IntBoard[dest] = Piece.Rook | movingColor;
                     break;
             }
         }
@@ -158,28 +196,28 @@ sealed class Board
         {
             case Move.TypeCastle:
                 capturedPiece = 0;
-                board[dest] = board[start];
-                board[start] = 0;
+                IntBoard[dest] = IntBoard[start];
+                IntBoard[start] = 0;
                 switch (dest)
                 {
                     case 1:
-                        board[0] = 0;
-                        board[2] = Piece.WhiteRook;
+                        IntBoard[0] = 0;
+                        IntBoard[2] = Piece.WhiteRook;
                         castlingRights &= 0b0011;
                         break;
                     case 5:
-                        board[7] = 0;
-                        board[4] = Piece.WhiteRook;
+                        IntBoard[7] = 0;
+                        IntBoard[4] = Piece.WhiteRook;
                         castlingRights &= 0b0011;
                         break;
                     case 57:
-                        board[56] = 0;
-                        board[58] = Piece.BlackRook;
+                        IntBoard[56] = 0;
+                        IntBoard[58] = Piece.BlackRook;
                         castlingRights &= 0b1100;
                         break;
                     case 61:
-                        board[63] = 0;
-                        board[60] = Piece.BlackRook;
+                        IntBoard[63] = 0;
+                        IntBoard[60] = Piece.BlackRook;
                         castlingRights &= 0b1100;
                         break;
                 }
@@ -188,22 +226,22 @@ sealed class Board
                 if ((dest >> 3) == 0b010)
                 {
                     capturedPiece = Piece.WhitePawn;
-                    board[dest + 8] = 0;
+                    IntBoard[dest + 8] = 0;
                 }
                 else
                 {
                     capturedPiece = Piece.BlackPawn;
-                    board[dest - 8] = 0;
+                    IntBoard[dest - 8] = 0;
                 }
-                board[dest] = board[start];
-                board[start] = 0;
+                IntBoard[dest] = IntBoard[start];
+                IntBoard[start] = 0;
                 break;
             case Move.TypePawnLeap:
                 halfmoveClock = 0;
                 pawnLeapFile = start >> 3;
                 capturedPiece = 0;
-                board[dest] = board[start];
-                board[start] = 0;
+                IntBoard[dest] = IntBoard[start];
+                IntBoard[start] = 0;
                 break;
             default:
                 if (movingPiece == Piece.King)
@@ -230,9 +268,9 @@ sealed class Board
                     }
                 }
                 else if (movingPiece == Piece.Pawn) halfmoveClock = 0;
-                capturedPiece = board[dest];
-                board[dest] = board[start];
-                board[start] = 0;
+                capturedPiece = IntBoard[dest];
+                IntBoard[dest] = IntBoard[start];
+                IntBoard[start] = 0;
                 break;
         }
 
@@ -270,46 +308,46 @@ sealed class Board
 
         if (move.IsPromotion)
         {
-            board[start] = Piece.Pawn | Piece.Color(board[dest]);
-            board[dest] = capturedPiece;
+            IntBoard[start] = Piece.Pawn | Piece.Color(IntBoard[dest]);
+            IntBoard[dest] = capturedPiece;
         }
         else switch (type)
             {
                 case Move.TypeCastle:
                     capturedPiece = 0;
-                    board[start] = board[dest];
-                    board[dest] = 0;
+                    IntBoard[start] = IntBoard[dest];
+                    IntBoard[dest] = 0;
                     switch (dest)
                     {
                         case 1:
-                            board[0] = Piece.WhiteRook;
-                            board[2] = 0;
+                            IntBoard[0] = Piece.WhiteRook;
+                            IntBoard[2] = 0;
                             break;
                         case 5:
-                            board[7] = Piece.WhiteRook;
-                            board[4] = 0;
+                            IntBoard[7] = Piece.WhiteRook;
+                            IntBoard[4] = 0;
                             break;
                         case 57:
-                            board[56] = Piece.BlackRook;
-                            board[58] = 0;
+                            IntBoard[56] = Piece.BlackRook;
+                            IntBoard[58] = 0;
                             break;
                         case 61:
-                            board[63] = Piece.BlackRook;
-                            board[60] = 0;
+                            IntBoard[63] = Piece.BlackRook;
+                            IntBoard[60] = 0;
                             break;
                     }
                     break;
                 case Move.TypeEnPassant:
                     if ((dest >> 3) == 0b010) 
-                        board[dest + 8] = Piece.WhitePawn;
+                        IntBoard[dest + 8] = Piece.WhitePawn;
                     else 
-                        board[dest - 8] = Piece.BlackPawn;
-                    board[start] = board[dest];
-                    board[dest] = 0;
+                        IntBoard[dest - 8] = Piece.BlackPawn;
+                    IntBoard[start] = IntBoard[dest];
+                    IntBoard[dest] = 0;
                     break;
                 default:
-                    board[start] = board[dest];
-                    board[dest] = capturedPiece;
+                    IntBoard[start] = IntBoard[dest];
+                    IntBoard[dest] = capturedPiece;
                     break;
             }
 
@@ -331,16 +369,16 @@ sealed class Board
         moveList = new List<Move>(50);
 
         for (int pos = 0; pos < 64; pos++)
-            if (Piece.IsColor(board[pos], ColorToMove))
+            if (Piece.IsColor(IntBoard[pos], ColorToMove))
                 GenMoves(pos);
 
         return moveList;
     }
 
     public void GenMoves(int pos) {
-        if (Piece.CanSlide(board[pos]))
+        if (Piece.CanSlide(IntBoard[pos]))
                     SlidingMoves(pos);
-        else switch (Piece.Type(board[pos]))
+        else switch (Piece.Type(IntBoard[pos]))
             {
                 case Piece.King:
                     KingMoves(pos);
@@ -384,21 +422,21 @@ sealed class Board
     int FindPiece(int piece, int file, int rank) {
         if (file == -1 && rank == -1) {
             for (int i = 0; i < 64; i++) {
-                if (board[i] == piece) {
+                if (IntBoard[i] == piece) {
                     return i;
                 }
             }
         } 
         else if (file == -1) {
             for (int i = 0; i < 8; i++) {
-                if (board[rank*8+i] == piece) {
+                if (IntBoard[rank*8+i] == piece) {
                     return rank*8+i;
                 }
             }
         } 
         else if (rank == -1) {
             for (int i = file; i < 64; i += 8) {
-                if (board[i] == piece) {
+                if (IntBoard[i] == piece) {
                     return i;
                 }
             }
@@ -467,8 +505,8 @@ sealed class Board
         int moveFlag = 0;
 
         // Capture Flags
-        if (board[dest] > 0) {
-            moveFlag = Piece.Type(board[dest]) & 0b1000;
+        if (IntBoard[dest] > 0) {
+            moveFlag = Piece.Type(IntBoard[dest]) & 0b1000;
         }
 
         // Pawn Flags
@@ -483,7 +521,7 @@ sealed class Board
                 };
             else if (Math.Abs(dest-start) == 16)
                 moveFlag = Move.TypePawnLeap;
-            else if (Math.Abs(dest-start) != 8 && board[dest] == 0)
+            else if (Math.Abs(dest-start) != 8 && IntBoard[dest] == 0)
                 moveFlag = Move.TypeEnPassant;
         }
 
@@ -505,14 +543,14 @@ sealed class Board
         StringBuilder str = new StringBuilder(7);
 
         // Add piece code
-        if (!Piece.IsType(board[move.Start], Piece.Pawn)) {
-            str.Append(Piece.Code(board[move.Start]));
+        if (!Piece.IsType(IntBoard[move.Start], Piece.Pawn)) {
+            str.Append(Piece.Code(IntBoard[move.Start]));
         }
 
         // Find other identical pieces that can move to dest
         List<int> conflicts = new(6);
         for (int i = 0; i < 64; i++) {
-            if ((i != move.Start) && (board[i] == board[move.Start])) {
+            if ((i != move.Start) && (IntBoard[i] == IntBoard[move.Start])) {
                 moveList = new(10);
                 GenMoves(i);
                 foreach (Move m in moveList) {
@@ -538,7 +576,7 @@ sealed class Board
         }
 
         // Add capture marker if neccesary
-        if (board[move.Dest] > 0 || move.IsEnPassant) {
+        if (IntBoard[move.Dest] > 0 || move.IsEnPassant) {
             str.Append('x');
         }
 
@@ -561,29 +599,29 @@ sealed class Board
     void TryAdd(int pos1, int pos2, int flag)
     {
         if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
-        if (Piece.IsColor(board[pos2], ColorToMove)) return;
+        if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
         if (flag == -1 && (pos2 >> 3) % 7 == 0) {
             moveList.Add(new Move(pos1, pos2, Move.TypePromoteToKnight));
             moveList.Add(new Move(pos1, pos2, Move.TypePromoteToQueen));
         }
         else {
             if (flag == -1) flag++;
-            if (Piece.IsColor(board[pos2], OpponentColor) && flag == Move.TypeNormal)
-                flag = Piece.Type(board[pos2]) + 8;
+            if (Piece.IsColor(IntBoard[pos2], OpponentColor) && flag == Move.TypeNormal)
+                flag = Piece.Type(IntBoard[pos2]) + 8;
             moveList.Add(new Move(pos1, pos2, flag));
         }
     }
 
     void SlidingMoves(int pos)
     {
-        if (Piece.CanSlideStraight(board[pos]))
+        if (Piece.CanSlideStraight(IntBoard[pos]))
         {
             SlidePiece(pos, 1, 0);
             SlidePiece(pos, -1, 0);
             SlidePiece(pos, 0, 1);
             SlidePiece(pos, 0, -1);
         }
-        if (Piece.CanSlideDiagonal(board[pos]))
+        if (Piece.CanSlideDiagonal(IntBoard[pos]))
         {
             SlidePiece(pos, 1, 1);
             SlidePiece(pos, 1, -1);
@@ -594,7 +632,7 @@ sealed class Board
 
     void SlidePiece(int pos1, int offsetX, int offsetY)
     {
-        int color = Piece.Color(board[pos1]);
+        int color = Piece.Color(IntBoard[pos1]);
         int range = Math.Min(
             ((pos1 & 0b111) * -offsetX + 7) % 7 + ((offsetX ^ 0b1) << 3),
             ((pos1 >> 3) * -offsetY + 7) % 7 + ((offsetY ^ 0b1) << 3)
@@ -604,9 +642,9 @@ sealed class Board
         for (int i = 0; i < range; i++)
         {
             pos2 += offset;
-            if (board[pos2] == 0) TryAdd(pos1, pos2, 0);
+            if (IntBoard[pos2] == 0) TryAdd(pos1, pos2, 0);
             else {
-                if (!Piece.IsColor(board[pos2], color)) TryAdd(pos1, pos2, 0);
+                if (!Piece.IsColor(IntBoard[pos2], color)) TryAdd(pos1, pos2, 0);
                 break;
             }
         }
@@ -616,17 +654,17 @@ sealed class Board
     {
         if (WhiteToMove)
         {
-            if (board[pos + 8] == 0) { 
+            if (IntBoard[pos + 8] == 0) { 
                 TryAdd(pos, pos + 8, -1);
-                if (pos >> 3 == 1 && board[pos + 16] == 0)
+                if (pos >> 3 == 1 && IntBoard[pos + 16] == 0)
                     TryAdd(pos, pos + 16, Move.TypePawnLeap);
             }
-            if (Piece.IsColor(board[pos + 7], OpponentColor)) {
+            if (Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
                 TryAdd(pos, pos + 7, -1);
             } else if ((pos%8)-1 == pawnLeapFile && pos/8 == 4) {
                 TryAdd(pos, pos + 7, Move.TypeEnPassant);
             }
-            if (Piece.IsColor(board[pos + 9], OpponentColor)) { 
+            if (Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
                 TryAdd(pos, pos + 9, -1);
             } else if ((pos%8)+1 == pawnLeapFile && pos/8 == 4) {
                 TryAdd(pos, pos + 9, Move.TypeEnPassant);
@@ -634,18 +672,18 @@ sealed class Board
         }
         else
         {
-            if (board[pos - 8] == 0)
+            if (IntBoard[pos - 8] == 0)
             {
                 TryAdd(pos, pos - 8, -1);
-                if (pos >> 3 == 6 && board[pos - 16] == 0)
+                if (pos >> 3 == 6 && IntBoard[pos - 16] == 0)
                     TryAdd(pos, pos - 16, 3);
             }
-            if (Piece.IsColor(board[pos - 7], OpponentColor)) {
+            if (Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
                 TryAdd(pos, pos - 7, -1);
             } else if ((pos%8)+1 == pawnLeapFile && pos/8 == 3) {
                 TryAdd(pos, pos - 7, Move.TypeEnPassant);
             }
-            if (Piece.IsColor(board[pos - 9], OpponentColor)) {
+            if (Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
                 TryAdd(pos, pos - 9, -1);
             } else if ((pos%8)-1 == pawnLeapFile && pos/8 == 3) {
                 TryAdd(pos, pos - 9, Move.TypeEnPassant);
@@ -664,18 +702,18 @@ sealed class Board
         TryAdd(pos, pos + 7, 0);
         TryAdd(pos, pos + 8, 0);
         TryAdd(pos, pos + 9, 0);
-        if (Piece.IsColor(board[pos], Piece.White))
+        if (Piece.IsColor(IntBoard[pos], Piece.White))
         {
             if ((castlingRights & WKCastleMask) > 0 &&
-                board[pos - 1] == 0 &&
-                board[pos - 2] == 0) 
+                IntBoard[pos - 1] == 0 &&
+                IntBoard[pos - 2] == 0) 
             {
                 TryAdd(pos, pos - 2, Move.TypeCastle);
             }
             if ((castlingRights & WQCastleMask) > 0 && 
-                board[pos + 1] == 0 && 
-                board[pos + 2] == 0 && 
-                board[pos + 3] == 0) 
+                IntBoard[pos + 1] == 0 && 
+                IntBoard[pos + 2] == 0 && 
+                IntBoard[pos + 3] == 0) 
             {
                 TryAdd(pos, pos + 2, Move.TypeCastle);
             }
@@ -683,15 +721,15 @@ sealed class Board
         else
         {
             if ((castlingRights & BKCastleMask) > 0 && 
-                board[pos - 1] == 0 && 
-                board[pos - 2] == 0) 
+                IntBoard[pos - 1] == 0 && 
+                IntBoard[pos - 2] == 0) 
             {
                 TryAdd(pos, pos - 2, Move.TypeCastle);
             }
             if ((castlingRights & BQCastleMask) > 0 && 
-                board[pos + 1] == 0 && 
-                board[pos + 2] == 0 && 
-                board[pos + 3] == 0) 
+                IntBoard[pos + 1] == 0 && 
+                IntBoard[pos + 2] == 0 && 
+                IntBoard[pos + 3] == 0) 
             {
                 TryAdd(pos, pos + 2, Move.TypeCastle);
             }
@@ -729,7 +767,7 @@ sealed class Board
         StringBuilder str = new StringBuilder(74);
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
-                str.Append(Piece.Code(board[row*8+col]));
+                str.Append(Piece.Code(IntBoard[row*8+col]));
                 str.Append(' ');
             } str.Append('\n');
         }
