@@ -34,7 +34,7 @@ public class PieceObject : ScriptableObject
         // Sets piece image to inputted sprite
         SpriteRenderer.sprite = pieceSprite;
         // Sets position variables
-        this.Position = position;
+        Position = position;
         Coords = instance.transform.position;
     }
 
@@ -71,6 +71,17 @@ public class PieceObject : ScriptableObject
         offset = real - Coords;
         Coords = real;
         return Position;
+    }
+
+    public void Kill(int side, int index) {
+        offset = Coords;
+        if (side == Piece.White) {
+            Coords = new Vector3(5.61F, -4.167F + 0.6F * index, -index);
+        }
+        else {
+            Coords = new Vector3(-5.61F, 4.167F - 0.6F * index, -index);
+        }
+        offset = Coords - offset;
     }
 
     public void Update() {

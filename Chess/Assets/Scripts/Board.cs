@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Linq;
 
 
 sealed class Board
@@ -151,6 +152,7 @@ sealed class Board
 
     public void DoMove(Move move)
     {
+        // Unpack move
         int start = move.Start;
         int dest = move.Dest;
         int type = move.Type;
@@ -166,11 +168,12 @@ sealed class Board
         if (movingColor == Piece.White) kingIndex = wkIndex;
         else kingIndex = bkIndex;
 
-
+        // Unpack state
         castlingRights = StateData & 0b1111;
-        pawnLeapFile = 8;
+        pawnLeapFile = 8; // Check why this uses 8 instead of StateData
         halfmoveClock = (StateData >> 13) + 1;
 
+        // Handle pawn promotion moves
         if (move.IsPromotion)
         {
             halfmoveClock = 0;
@@ -192,8 +195,10 @@ sealed class Board
                     break;
             }
         }
+        // Handles all other moves
         else switch (type)
         {
+            // Castle moves
             case Move.TypeCastle:
                 capturedPiece = 0;
                 IntBoard[dest] = IntBoard[start];
@@ -222,6 +227,7 @@ sealed class Board
                         break;
                 }
                 break;
+            // En passant captures
             case Move.TypeEnPassant:
                 if ((dest >> 3) == 0b010)
                 {
@@ -236,21 +242,25 @@ sealed class Board
                 IntBoard[dest] = IntBoard[start];
                 IntBoard[start] = 0;
                 break;
+            // Pawn moving forward two spaces
             case Move.TypePawnLeap:
                 halfmoveClock = 0;
-                pawnLeapFile = start >> 3;
+                pawnLeapFile = start >> 3; // Saves file state data so that it can be captured in future en passant
                 capturedPiece = 0;
                 IntBoard[dest] = IntBoard[start];
                 IntBoard[start] = 0;
                 break;
+            // All other moves
             default:
                 if (movingPiece == Piece.King)
                 {
+                    // King moves remove castling rights
                     if (movingColor == Piece.White) castlingRights &= 0b0011;
                     else castlingRights &= 0b1100;
                 }
                 else if (movingPiece == Piece.Rook)
                 {
+                    // Rook moves remove castling rights on their side
                     switch (start)
                     {
                         case 0:
@@ -267,18 +277,23 @@ sealed class Board
                             break;
                     }
                 }
-                else if (movingPiece == Piece.Pawn) halfmoveClock = 0;
+                else if (movingPiece == Piece.Pawn) {
+                    halfmoveClock = 0; // Reset halfmove clock if pawn is moved
+                }
                 capturedPiece = IntBoard[dest];
                 IntBoard[dest] = IntBoard[start];
                 IntBoard[start] = 0;
                 break;
         }
 
-        if (capturedPiece != 0) halfmoveClock = 0;
+        if (capturedPiece != 0) {
+            halfmoveClock = 0; // Reset halfmove clock if piece is captured 
+        } 
 
+        // Repack state data
         // Format: HHHHHHLLLLPPPPPCCCC, H = halfmoveClock, L = pawnLeapFile, P = capturedPiece, C = castlingRights
-
         StateData = castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13);
+        // Save state data
         StateHistory.Push(StateData);
         WhiteToMove = !WhiteToMove;
         if (WhiteToMove)
@@ -295,10 +310,12 @@ sealed class Board
 
     public void UndoMove(Move move)
     {
+        // Unpack move
         int start = move.Start;
         int dest = move.Dest;
         int type = move.Type;
 
+        // Unpack state data
         StateData = StateHistory.Pop();
 
         castlingRights = StateData & 0b1111;
@@ -306,11 +323,13 @@ sealed class Board
         pawnLeapFile = (StateData >> 9) & 0b1111;
         halfmoveClock = StateData >> 13;
 
+        // Handle pawn un-promotions
         if (move.IsPromotion)
         {
             IntBoard[start] = Piece.Pawn | Piece.Color(IntBoard[dest]);
             IntBoard[dest] = capturedPiece;
         }
+        // Handles all other moves
         else switch (type)
             {
                 case Move.TypeCastle:
@@ -363,7 +382,15 @@ sealed class Board
             OpponentColor = Piece.White;
         }
     }
-
+    public Move CheckMove(int start, int dest) {
+        PseudoLegalMoves();
+        foreach (Move m in moveList) {
+            if (m.Start == start && m.Dest == dest) {
+                return m;
+            }
+        }
+        return new Move(0, 0, 0);
+    }
     public List<Move> PseudoLegalMoves()
     {
         moveList = new List<Move>(50);
@@ -373,6 +400,17 @@ sealed class Board
                 GenMoves(pos);
 
         return moveList;
+    }
+
+    public List<int> HighlightPositions(int start) {
+        PseudoLegalMoves();
+        HashSet<int> dests = new();
+        foreach (Move m in moveList) {
+            if (m.Start == start) {
+                dests.Add(m.Dest);
+            }
+        }
+        return dests.ToList();
     }
 
     public void GenMoves(int pos) {
@@ -760,6 +798,10 @@ sealed class Board
                 if (y < 7) TryAdd(pos, pos + 10, 0);
             }
         }
+    }
+
+    public int PieceAt(int index) {
+        return IntBoard[index];
     }
 
     public override string ToString()
