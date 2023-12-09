@@ -4,6 +4,7 @@ using System.Text;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Linq;
+using TMPro;
 
 
 sealed class Board
@@ -25,6 +26,7 @@ sealed class Board
     public int StateData;
     // Contains history of the state data from all previous states (moves) in a game
     public Stack<int> StateHistory { get; }
+    public int Fullmove;
     // Current state data:
     int halfmoveClock;
     int pawnLeapFile; // 0 is A File, 7 is H file, 8 is no pawn leap
@@ -78,6 +80,182 @@ sealed class Board
         */
         // Starts game from inputted board, no state history (used for training and puzzles)
         IntBoard = boardArray;
+    }
+
+    public Board(string FEN) {
+        IntBoard = new int[64];
+        int progress = ReadFEN(FEN);
+        if (progress < 1) {
+            IntBoard = StartingBoard();
+        }
+        if (progress < 2) {
+            WhiteToMove = true;
+            ColorToMove = Piece.White;
+            OpponentColor = Piece.Black;
+        }
+        if (progress < 3) {
+            castlingRights = 0b1111;
+        }
+        if (progress < 4) {
+            pawnLeapFile = 8;
+        }
+        if (progress < 5) {
+            halfmoveClock = 0;
+        }
+        if (progress < 6) {
+            Fullmove = 0;
+        }
+        StateData = castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13);
+        StateHistory = new Stack<int>(70);
+    }
+
+    int ReadFEN(string FEN) {
+        // Sets board information from FEN string
+        // Returns how much progress it was able to make (0 if formatted incorrectly)
+        // Constructor will handle whatever this method can't
+        int fenIndex = 0;
+        int boardIndex = 0;
+        int tries = 0;
+
+        // Segment 1: Board
+        while (boardIndex < 64) {
+            if (tries++ > 72) {
+                Debug.Write("FEN failed on board (infinite loop)");
+                return 0;
+            }
+            char c = FEN[fenIndex++];
+            if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')) {
+                IntBoard[boardIndex++] = Piece.FENChar(c);
+            } 
+            else if ('1' <= c && c <= '8') {
+                boardIndex += c - '0';
+            }
+            else if (c == '/') {
+                if (boardIndex % 8 > 0) {
+                    Debug.Write("FEN failed on board (unexpected '/')");
+                    return 0; 
+                }
+            }
+            else {
+                Debug.Write("FEN failed on board (unknown char)");
+                return 0;
+            }
+        }
+
+        // Segment 2: Active Player
+        fenIndex++;
+        if (fenIndex >= FEN.Length) {
+            Debug.Write("FEN failed on active player (incomplete FEN string)");
+            return 1;
+        }
+        if (FEN[fenIndex] == 'w') {
+            WhiteToMove = true;
+            ColorToMove = Piece.White;
+            OpponentColor = Piece.Black;
+        }
+        else if (FEN[fenIndex] == 'b') {
+            WhiteToMove = false;
+            ColorToMove = Piece.Black;
+            OpponentColor = Piece.White;
+        }
+        else {
+            Debug.Write("FEN failed on active player (unknown char))");
+            return 1;
+        }
+
+        // Segment 3: Castling Rights
+        castlingRights = 0;
+        fenIndex += 2;
+        if (fenIndex >= FEN.Length) {
+            Debug.Write("FEN failed on castle rights (incomplete FEN string)");
+            return 2;
+        }
+        if (FEN[fenIndex] == ' ') {
+            Debug.Write("FEN failed on castle rights (unexpected ' ')");
+            return 2;
+        }
+        while (FEN[fenIndex] != ' ') {
+            if (tries++ > 4) {
+                Debug.Write("FEN failed on castle rights (infinite loop)");
+                return 2;
+            }
+            if (!"KQkq-".Contains(FEN[fenIndex])) {
+                Debug.Write("FEN failed on castle rights (unexpected char)");
+                return 2;
+            }
+            castlingRights |= FEN[fenIndex] switch {
+                'k' => BKCastleMask,
+                'K' => WKCastleMask,
+                'q' => BQCastleMask,
+                'Q' => WQCastleMask,
+                '-' => 0,
+                _ => -1
+            };
+        }
+
+        // Segment 4: Pawn Leap File
+        fenIndex++;
+        if (fenIndex >= FEN.Length) {
+            Debug.Write("FEN failed on pawn leap file (incomplete FEN string)");
+            return 3;
+        }
+        char leapChar = FEN[fenIndex];
+        if (leapChar == '-') {
+            pawnLeapFile = 8;
+            fenIndex += 2;
+        } else {
+            if (leapChar > 'Z') 
+                leapChar -= (char)32; 
+            if (leapChar < 'A' || leapChar > 'Z') {
+                Debug.Write("FEN failed on pawn leap file (unexpected char)");
+                return 3;
+            }
+            pawnLeapFile = leapChar - 'A';
+            fenIndex += 3;
+        }
+
+        // Segment 5: Half-move clock
+        if (fenIndex + 1 >= FEN.Length) {
+            Debug.Write("FEN failed on half-move clock (incomplete FEN string)");
+            return 4;
+        }
+        if (FEN[fenIndex] < '0' || FEN[fenIndex] > '9') {
+            Debug.Write("FEN failed on half-move clock (unexpected char)");
+            return 4;
+        }
+        else if (FEN[fenIndex + 1] == ' ') {
+            halfmoveClock = FEN[fenIndex] - '0';
+            fenIndex += 2;
+        }
+        else if (FEN[fenIndex + 1] < '0' || FEN[fenIndex + 1] > '9') {
+            Debug.Write("FEN failed on half-move clock (unexpected char)");
+            return 4;
+        }
+        else {
+            halfmoveClock = 10 * (FEN[fenIndex] - '0') + FEN[fenIndex + 1] - '0'; 
+            fenIndex += 3;
+        }
+
+        // Segment 6: Fullmove number
+        if (fenIndex >= FEN.Length) {
+            Debug.Write("FEN failed on full-move number (incomplete FEN string)");
+            return 5;
+        }
+        Fullmove = 0;
+        while (fenIndex < FEN.Length) {
+            if (tries++ > 7) {
+                Debug.Write("FEN failed on full-move number (infinite loop)");
+                return 5;
+            } 
+            Fullmove *= 10;
+            if (FEN[fenIndex] < '0' || FEN[fenIndex] > '9') {
+                Debug.Write("FEN failed on full-move number (unexpected char)");
+                return 5;
+            }
+            Fullmove += FEN[fenIndex] - '0';
+        }
+
+        return 6;
     }
     
     public static int[] StartingBoard() {
@@ -402,18 +580,25 @@ sealed class Board
         return moveList;
     }
 
-    public List<int> HighlightPositions(int start) {
-        PseudoLegalMoves();
-        HashSet<int> dests = new();
-        foreach (Move m in moveList) {
-            if (m.Start == start) {
-                dests.Add(m.Dest);
-            }
-        }
-        return dests.ToList();
+    public List<Move> PseudoLegalMoves(int pos) {
+        moveList = new List<Move>(28);
+
+        if (Piece.IsColor(IntBoard[pos], ColorToMove))
+            GenMoves(pos);
+
+        return moveList;
     }
 
-    public void GenMoves(int pos) {
+
+    public int[] HighlightPositions(int start) {
+        PseudoLegalMoves(start);
+        int[] dests = new int[moveList.Count];
+        for (int i = 0; i < moveList.Count; i++)
+            dests[i] = moveList[i].Dest;
+        return dests;
+    }
+
+    void GenMoves(int pos) {
         if (Piece.CanSlide(IntBoard[pos]))
                     SlidingMoves(pos);
         else switch (Piece.Type(IntBoard[pos]))
@@ -444,6 +629,182 @@ sealed class Board
 
     }
 */
+    
+
+    void TryAdd(int pos1, int pos2, int flag)
+    {
+        if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
+        if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
+        if (flag == -1 && (pos2 >> 3) % 7 == 0) {
+            moveList.Add(new Move(pos1, pos2, Move.TypePromoteToKnight));
+            moveList.Add(new Move(pos1, pos2, Move.TypePromoteToQueen));
+        }
+        else {
+            if (flag == -1) flag++;
+            if (Piece.IsColor(IntBoard[pos2], OpponentColor) && flag == Move.TypeNormal)
+                flag = Piece.Type(IntBoard[pos2]) + 8;
+            moveList.Add(new Move(pos1, pos2, flag));
+        }
+    }
+
+    void SlidingMoves(int pos)
+    {
+        if (Piece.CanSlideStraight(IntBoard[pos]))
+        {
+            SlidePiece(pos, 1, 0);
+            SlidePiece(pos, -1, 0);
+            SlidePiece(pos, 0, 1);
+            SlidePiece(pos, 0, -1);
+        }
+        if (Piece.CanSlideDiagonal(IntBoard[pos]))
+        {
+            SlidePiece(pos, 1, 1);
+            SlidePiece(pos, 1, -1);
+            SlidePiece(pos, -1, 1);
+            SlidePiece(pos, -1, -1);
+        }
+    }
+
+    public void UnitTest(int test) {
+        switch (test) {
+            case 0:
+
+                break;
+        }
+    }
+
+    void SlidePiece(int pos1, int offsetX, int offsetY)
+    {
+        int color = Piece.Color(IntBoard[pos1]);
+        int range = Math.Min(
+            ((pos1 & 0b111) * -offsetX + 7) % 7 + ((offsetX ^ 0b1) << 3),
+            ((pos1 >> 3) * -offsetY + 7) % 7 + ((offsetY ^ 0b1) << 3)
+            );
+        int offset = offsetX + (offsetY * 8);
+        int pos2 = pos1;
+        for (int i = 0; i < range; i++)
+        {
+            pos2 += offset;
+            if (IntBoard[pos2] == 0) TryAdd(pos1, pos2, 0);
+            else {
+                if (!Piece.IsColor(IntBoard[pos2], color)) TryAdd(pos1, pos2, 0);
+                break;
+            }
+        }
+    }
+
+    void PawnMoves(int pos)
+    {
+        if (WhiteToMove)
+        {
+            if (IntBoard[pos + 8] == 0) { 
+                TryAdd(pos, pos + 8, -1);
+                if (pos >> 3 == 1 && IntBoard[pos + 16] == 0)
+                    TryAdd(pos, pos + 16, Move.TypePawnLeap);
+            }
+            if (Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
+                TryAdd(pos, pos + 7, -1);
+            } else if ((pos%8)-1 == pawnLeapFile && pos/8 == 4) {
+                TryAdd(pos, pos + 7, Move.TypeEnPassant);
+            }
+            if (Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
+                TryAdd(pos, pos + 9, -1);
+            } else if ((pos%8)+1 == pawnLeapFile && pos/8 == 4) {
+                TryAdd(pos, pos + 9, Move.TypeEnPassant);
+            }
+        }
+        else
+        {
+            if (IntBoard[pos - 8] == 0)
+            {
+                TryAdd(pos, pos - 8, -1);
+                if (pos >> 3 == 6 && IntBoard[pos - 16] == 0)
+                    TryAdd(pos, pos - 16, 3);
+            }
+            if (Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
+                TryAdd(pos, pos - 7, -1);
+            } else if ((pos%8)+1 == pawnLeapFile && pos/8 == 3) {
+                TryAdd(pos, pos - 7, Move.TypeEnPassant);
+            }
+            if (Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
+                TryAdd(pos, pos - 9, -1);
+            } else if ((pos%8)-1 == pawnLeapFile && pos/8 == 3) {
+                TryAdd(pos, pos - 9, Move.TypeEnPassant);
+            }
+        }
+    }
+
+    void KingMoves(int pos)
+    {
+        TryAdd(pos, pos - 9, 0);
+        TryAdd(pos, pos - 8, 0);
+        TryAdd(pos, pos - 7, 0);
+        TryAdd(pos, pos - 1, 0);
+        TryAdd(pos, pos + 1, 0);
+        TryAdd(pos, pos + 1, 0);
+        TryAdd(pos, pos + 7, 0);
+        TryAdd(pos, pos + 8, 0);
+        TryAdd(pos, pos + 9, 0);
+        if (Piece.IsColor(IntBoard[pos], Piece.White))
+        {
+            if ((castlingRights & WKCastleMask) > 0 &&
+                IntBoard[pos - 1] == 0 &&
+                IntBoard[pos - 2] == 0) 
+            {
+                TryAdd(pos, pos - 2, Move.TypeCastle);
+            }
+            if ((castlingRights & WQCastleMask) > 0 && 
+                IntBoard[pos + 1] == 0 && 
+                IntBoard[pos + 2] == 0 && 
+                IntBoard[pos + 3] == 0) 
+            {
+                TryAdd(pos, pos + 2, Move.TypeCastle);
+            }
+        } 
+        else
+        {
+            if ((castlingRights & BKCastleMask) > 0 && 
+                IntBoard[pos - 1] == 0 && 
+                IntBoard[pos - 2] == 0) 
+            {
+                TryAdd(pos, pos - 2, Move.TypeCastle);
+            }
+            if ((castlingRights & BQCastleMask) > 0 && 
+                IntBoard[pos + 1] == 0 && 
+                IntBoard[pos + 2] == 0 && 
+                IntBoard[pos + 3] == 0) 
+            {
+                TryAdd(pos, pos + 2, Move.TypeCastle);
+            }
+        }
+    }
+
+    void KnightMoves(int pos)
+    {
+        int x = pos & 0b111;
+        int y = pos >> 3;
+        if (x > 0)
+        {
+            if (y > 1) TryAdd(pos, pos - 17, Move.TypeNormal);
+            if (y < 6) TryAdd(pos, pos + 15, Move.TypeNormal);
+            if (x > 1) 
+            { 
+                if (y > 0) TryAdd(pos, pos - 10, Move.TypeNormal);
+                if (y < 7) TryAdd(pos, pos + 6,  Move.TypeNormal);
+            }
+        }
+        if (x < 7)
+        {
+            if (y > 1) TryAdd(pos, pos - 15, Move.TypeNormal);
+            if (y < 6) TryAdd(pos, pos + 17, Move.TypeNormal);
+            if (x < 6)
+            {
+                if (y > 0) TryAdd(pos, pos - 6,  0);
+                if (y < 7) TryAdd(pos, pos + 10, 0);
+            }
+        }
+    }
+
     static int FileInt(char c) => c switch {
             'a' => 0,
             'b' => 1,
@@ -632,172 +993,6 @@ sealed class Board
         });
 
         return str.ToString();
-    }
-
-    void TryAdd(int pos1, int pos2, int flag)
-    {
-        if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
-        if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
-        if (flag == -1 && (pos2 >> 3) % 7 == 0) {
-            moveList.Add(new Move(pos1, pos2, Move.TypePromoteToKnight));
-            moveList.Add(new Move(pos1, pos2, Move.TypePromoteToQueen));
-        }
-        else {
-            if (flag == -1) flag++;
-            if (Piece.IsColor(IntBoard[pos2], OpponentColor) && flag == Move.TypeNormal)
-                flag = Piece.Type(IntBoard[pos2]) + 8;
-            moveList.Add(new Move(pos1, pos2, flag));
-        }
-    }
-
-    void SlidingMoves(int pos)
-    {
-        if (Piece.CanSlideStraight(IntBoard[pos]))
-        {
-            SlidePiece(pos, 1, 0);
-            SlidePiece(pos, -1, 0);
-            SlidePiece(pos, 0, 1);
-            SlidePiece(pos, 0, -1);
-        }
-        if (Piece.CanSlideDiagonal(IntBoard[pos]))
-        {
-            SlidePiece(pos, 1, 1);
-            SlidePiece(pos, 1, -1);
-            SlidePiece(pos, -1, 1);
-            SlidePiece(pos, -1, -1);
-        }
-    }
-
-    void SlidePiece(int pos1, int offsetX, int offsetY)
-    {
-        int color = Piece.Color(IntBoard[pos1]);
-        int range = Math.Min(
-            ((pos1 & 0b111) * -offsetX + 7) % 7 + ((offsetX ^ 0b1) << 3),
-            ((pos1 >> 3) * -offsetY + 7) % 7 + ((offsetY ^ 0b1) << 3)
-            );
-        int offset = offsetX + (offsetY * 8);
-        int pos2 = pos1;
-        for (int i = 0; i < range; i++)
-        {
-            pos2 += offset;
-            if (IntBoard[pos2] == 0) TryAdd(pos1, pos2, 0);
-            else {
-                if (!Piece.IsColor(IntBoard[pos2], color)) TryAdd(pos1, pos2, 0);
-                break;
-            }
-        }
-    }
-
-    void PawnMoves(int pos)
-    {
-        if (WhiteToMove)
-        {
-            if (IntBoard[pos + 8] == 0) { 
-                TryAdd(pos, pos + 8, -1);
-                if (pos >> 3 == 1 && IntBoard[pos + 16] == 0)
-                    TryAdd(pos, pos + 16, Move.TypePawnLeap);
-            }
-            if (Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
-                TryAdd(pos, pos + 7, -1);
-            } else if ((pos%8)-1 == pawnLeapFile && pos/8 == 4) {
-                TryAdd(pos, pos + 7, Move.TypeEnPassant);
-            }
-            if (Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
-                TryAdd(pos, pos + 9, -1);
-            } else if ((pos%8)+1 == pawnLeapFile && pos/8 == 4) {
-                TryAdd(pos, pos + 9, Move.TypeEnPassant);
-            }
-        }
-        else
-        {
-            if (IntBoard[pos - 8] == 0)
-            {
-                TryAdd(pos, pos - 8, -1);
-                if (pos >> 3 == 6 && IntBoard[pos - 16] == 0)
-                    TryAdd(pos, pos - 16, 3);
-            }
-            if (Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
-                TryAdd(pos, pos - 7, -1);
-            } else if ((pos%8)+1 == pawnLeapFile && pos/8 == 3) {
-                TryAdd(pos, pos - 7, Move.TypeEnPassant);
-            }
-            if (Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
-                TryAdd(pos, pos - 9, -1);
-            } else if ((pos%8)-1 == pawnLeapFile && pos/8 == 3) {
-                TryAdd(pos, pos - 9, Move.TypeEnPassant);
-            }
-        }
-    }
-
-    void KingMoves(int pos)
-    {
-        TryAdd(pos, pos - 9, 0);
-        TryAdd(pos, pos - 8, 0);
-        TryAdd(pos, pos - 7, 0);
-        TryAdd(pos, pos - 1, 0);
-        TryAdd(pos, pos + 1, 0);
-        TryAdd(pos, pos + 1, 0);
-        TryAdd(pos, pos + 7, 0);
-        TryAdd(pos, pos + 8, 0);
-        TryAdd(pos, pos + 9, 0);
-        if (Piece.IsColor(IntBoard[pos], Piece.White))
-        {
-            if ((castlingRights & WKCastleMask) > 0 &&
-                IntBoard[pos - 1] == 0 &&
-                IntBoard[pos - 2] == 0) 
-            {
-                TryAdd(pos, pos - 2, Move.TypeCastle);
-            }
-            if ((castlingRights & WQCastleMask) > 0 && 
-                IntBoard[pos + 1] == 0 && 
-                IntBoard[pos + 2] == 0 && 
-                IntBoard[pos + 3] == 0) 
-            {
-                TryAdd(pos, pos + 2, Move.TypeCastle);
-            }
-        } 
-        else
-        {
-            if ((castlingRights & BKCastleMask) > 0 && 
-                IntBoard[pos - 1] == 0 && 
-                IntBoard[pos - 2] == 0) 
-            {
-                TryAdd(pos, pos - 2, Move.TypeCastle);
-            }
-            if ((castlingRights & BQCastleMask) > 0 && 
-                IntBoard[pos + 1] == 0 && 
-                IntBoard[pos + 2] == 0 && 
-                IntBoard[pos + 3] == 0) 
-            {
-                TryAdd(pos, pos + 2, Move.TypeCastle);
-            }
-        }
-    }
-
-    void KnightMoves(int pos)
-    {
-        int x = pos & 0b111;
-        int y = pos >> 3;
-        if (x > 0)
-        {
-            if (y > 1) TryAdd(pos, pos - 17, Move.TypeNormal);
-            if (y < 6) TryAdd(pos, pos + 15, Move.TypeNormal);
-            if (x > 1) 
-            { 
-                if (y > 0) TryAdd(pos, pos - 10, Move.TypeNormal);
-                if (y < 7) TryAdd(pos, pos + 6,  Move.TypeNormal);
-            }
-        }
-        if (x < 7)
-        {
-            if (y > 1) TryAdd(pos, pos - 15, Move.TypeNormal);
-            if (y < 6) TryAdd(pos, pos + 17, Move.TypeNormal);
-            if (x < 6)
-            {
-                if (y > 0) TryAdd(pos, pos - 6,  0);
-                if (y < 7) TryAdd(pos, pos + 10, 0);
-            }
-        }
     }
 
     public int PieceAt(int index) {

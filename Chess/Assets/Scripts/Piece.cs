@@ -72,6 +72,18 @@ static class Piece
         };
     }
 
+    public static int FENChar(char c) {
+        return (c > 'Z' ? c - 'a' + 'A' : c) switch {
+            'K' => King,
+            'Q' => Queen,
+            'R' => Rook,
+            'N' => Knight,
+            'B' => Bishop,
+            'P' => Pawn,
+            _ => Empty
+        } | (c > 'Z' ? Black : White);
+    }
+
     // Basic properties
     public static bool IsColor(int piece, int color) => (piece & colorMask) == color;
 

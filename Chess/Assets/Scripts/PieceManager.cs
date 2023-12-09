@@ -124,8 +124,7 @@ public class PieceManager : MonoBehaviour
                     highlights[i].enabled = false;
                 }
                 if (selectedPiece != null) {
-                    List<int> dests = board.HighlightPositions(selectedPiece.Position);
-                    foreach (int pos in dests) {
+                    foreach (int pos in board.HighlightPositions(selectedPiece.Position)) {
                         highlights[pos].enabled = true;
                     }
                 }
