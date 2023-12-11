@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
@@ -27,6 +28,7 @@ public class PieceManager : MonoBehaviour
     static Vector3 cameraOffest = new(0, 0, 10);
     // Determines how quickly the piece will move towards the mouse (or how quickly mouseOffset approaches zero)
     public static Vector3 MouseGravity = new(0.8F, 0.8F, 0.8F);
+    static Vector3 dragOffset = new(0, 0, -1);
     Board board;
     int highlightedTile;
 
@@ -34,7 +36,7 @@ public class PieceManager : MonoBehaviour
     void Start()
     {
         // Grabs starting position from Board class
-        board = new();
+        board = new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         int[] intBoard = board.IntBoard;
         pieces = new(32);
         whiteGraveyard = new(15);
@@ -84,6 +86,22 @@ public class PieceManager : MonoBehaviour
             pieces.Add(piece);
         }
     }
+
+    void KillAt(int index) {
+        foreach (PieceObject p in pieces)
+            if (p.Position == index) {
+                if (Piece.IsColor(board.PieceAt(index), Piece.White)) {
+                    whiteGraveyard.Add(p);
+                    p.Kill(Piece.White, whiteGraveyard.Count);
+                } else {
+                    blackGraveyard.Add(p);
+                    p.Kill(Piece.Black, blackGraveyard.Count);
+                }
+                pieces.Remove(p);
+                break;
+        }
+    }
+
     void Update() {
         // Unity calls Update() method every frame.
 
@@ -101,7 +119,7 @@ public class PieceManager : MonoBehaviour
                     // Decrease mouse offset (move piece towards mouse)
                     mouseOffset = Vector3.Scale(mouseOffset, MouseGravity);
                     // Update piece position
-                    selectedPiece.SetPosition(mousePosition - mouseOffset);
+                    selectedPiece.SetPosition(mousePosition - mouseOffset + dragOffset);
                 }
             } else {
                 // If mouse is down but not yet dragging
@@ -116,6 +134,7 @@ public class PieceManager : MonoBehaviour
                             selectedPiece = p;
                             // Determine difference between mouse and piece position
                             mouseOffset = mousePosition - p.Coords;
+                            // Debug.Log(selectedPiece.Position);
                             break;
                         }
                     }
@@ -149,17 +168,22 @@ public class PieceManager : MonoBehaviour
                     selectedPiece.RejectPlacement();
                 } else {
                     // If move is valid
-                    foreach (PieceObject p in pieces)
-                        if (p.Position == move.Dest) {
-                            if (Piece.IsColor(board.PieceAt(move.Dest), Piece.White)) {
-                                whiteGraveyard.Add(p);
-                                p.Kill(Piece.White, whiteGraveyard.Count);
-                            } else {
-                                blackGraveyard.Add(p);
-                                p.Kill(Piece.Black, blackGraveyard.Count);
+                    if (move.Type == Move.TypeCastle) {
+                        // If move is a castle, do corresponding rook move
+                        Move rookMove = move.CastlePartnerMove;
+                        foreach (PieceObject p in pieces)
+                            if (p.Position == rookMove.Start) {
+                                p.MoveTo(rookMove.Dest);
+                                break;
                             }
-                            pieces.Remove(p);
-                            break;
+                    }
+                    else if (move.Type == Move.TypeEnPassant) {
+                        // If move is en passant, kill passed pawn
+                        KillAt(move.DestCol + move.StartRow * 8);
+                    } 
+                    else {
+                        // If move is a capture, kill captured piece
+                        KillAt(move.Dest);
                     }
                     selectedPiece.PlacePiece(mousePosition - mouseOffset);
                     board.DoMove(move);
@@ -177,6 +201,17 @@ public class PieceManager : MonoBehaviour
             }
             highlightedTile = mouseTile;
         }
+
+        // Use spacebar to check for board <-> game assymetries
+        if (Input.GetKeyDown(KeyCode.Space)) {
+            HandleAsymmetries(true);
+        }
+        // Use backspace to manually undo moves
+        else if (Input.GetKeyDown(KeyCode.Backspace)) {
+            board.UndoMove();
+            HandleAsymmetries(false);
+        }
+
         // Update all pieces
         foreach (PieceObject p in pieces) 
             p.Update();
@@ -184,5 +219,86 @@ public class PieceManager : MonoBehaviour
             whiteGraveyard[^1].Update();
         if (blackGraveyard.Count > 0)
             blackGraveyard[^1].Update();
+    }
+
+    void HandleAsymmetries(bool debug) {
+        List<PieceObject> gameAsymmetries = new(4);
+        List<Tuple<int, int>> boardAsymmetries = new(4);
+        int[] gameBoard = new int[64];
+        int[] intBoard = board.IntBoard;
+        foreach (PieceObject p in pieces) {
+            gameBoard[p.Position] = p.PieceCode;
+            if (intBoard[p.Position] != p.PieceCode) {
+                gameAsymmetries.Add(p);
+            }
+        }
+        for (int i = 0; i < 64; i++) {
+            if (intBoard[i] != gameBoard[i] && intBoard[i] > 0)
+                boardAsymmetries.Add(new(intBoard[i], i));
+        }
+        while (gameAsymmetries.Count > 0) {
+            int boardAsymIndex = -1;
+            for (int i = 0; i < boardAsymmetries.Count; i++) {
+                if (boardAsymmetries[i].Item1 == gameAsymmetries[0].PieceCode) {
+                    boardAsymIndex = i;
+                    break;
+                }
+            }
+            if (boardAsymIndex == -1) {
+                PieceObject killThisOne = gameAsymmetries[0];
+                if (debug) Debug.Log("Piece " + killThisOne + " at " + killThisOne.Position + " killed.");
+                if (Piece.IsColor(killThisOne.PieceCode, Piece.White)) {
+                    whiteGraveyard.Add(killThisOne);
+                    killThisOne.Kill(Piece.White, whiteGraveyard.Count);
+                } else {
+                    blackGraveyard.Add(killThisOne);
+                    killThisOne.Kill(Piece.Black, blackGraveyard.Count);
+                }
+                pieces.Remove(killThisOne);
+            } else {
+                if (debug)
+                    Debug.Log("Piece " + gameAsymmetries[0] + " at " + gameAsymmetries[0].Position + 
+                              " moved to " + boardAsymmetries[boardAsymIndex].Item2 + ".");
+                gameAsymmetries[0].MoveTo(boardAsymmetries[boardAsymIndex].Item2);
+                boardAsymmetries.RemoveAt(boardAsymIndex);
+            }
+            gameAsymmetries.RemoveAt(0);
+        }
+        while (boardAsymmetries.Count > 0) {
+            bool revived = false;
+            int pieceCode = boardAsymmetries[0].Item1;
+            int index = boardAsymmetries[0].Item2;
+            foreach (PieceObject corpse in Piece.IsColor(pieceCode, Piece.White) ? whiteGraveyard : blackGraveyard) {
+                if (corpse.PieceCode == pieceCode) {
+                    corpse.MoveTo(index);
+                    whiteGraveyard.Remove(corpse);
+                    blackGraveyard.Remove(corpse);
+                    pieces.Add(corpse);
+                    revived = true;
+                    if (debug) Debug.Log("Piece " + corpse + " revived at " + index + ".");
+                    break;
+                }
+            }
+            if (!revived) {
+                if (whiteGraveyard.Count > 0) {
+                    whiteGraveyard[0].MoveTo(index);
+                    pieces.Add(whiteGraveyard[0]);
+                    if (debug) Debug.Log("Piece " + whiteGraveyard[0] + " created at " + index + ".");
+                    whiteGraveyard.RemoveAt(0);
+                } 
+                else if (blackGraveyard.Count > 0) {
+                    blackGraveyard[0].MoveTo(index);
+                    pieces.Add(blackGraveyard[0]);
+                    if (debug) Debug.Log("Piece " + blackGraveyard[0] + " created at " + index + ".");
+                    blackGraveyard.RemoveAt(0);
+                }
+                else {
+                    if (debug) 
+                        Debug.Log("Graveyard empty, asymmetry of " + Piece.ToString(pieceCode) + 
+                                  " at " + index + " could not be resolved.");
+                }
+            }
+            boardAsymmetries.RemoveAt(0);
+        }
     }
 }

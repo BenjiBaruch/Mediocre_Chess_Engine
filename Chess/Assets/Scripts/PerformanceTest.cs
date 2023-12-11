@@ -23,7 +23,7 @@ class PerformanceTest {
         checks = new int[Depth];
         checkMates = new int[Depth];
         gameEnds = new int[Depth];
-        this.Depth = depth;
+        Depth = depth;
     }
 
     public PerformanceTest(int depth) : this(depth, new()) {}
@@ -60,7 +60,7 @@ class PerformanceTest {
                 b.DoMove(m);
                 if(b.IsCheck()) checks[i]++;
                 PerfTestRec(i+1);
-                b.UndoMove(m);
+                b.UndoMove();
             }
         }
     }

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Text;
+using TMPro;
 
 public readonly struct Move
 {
@@ -38,20 +39,49 @@ public readonly struct Move
     {
         value = (ushort)(type << 12 | dest << 6 | start);
     }
+
+    public Move(int value) { this.value = (ushort)value; }
     
     // Position properties
     public int Start => value & startMask;
     public int StartCol => value & 0b111;
     public int StartRow => (value & startMask) >> 3;
+    public static int StatStart(int value) => value & startMask;
     public int Dest => (value & destMask) >> 6;
     public int DestCol => (value & 0b111000000) >> 6;
     public int DestRow => (value & destMask) >> 9;
+    public static int StatDest(int value) => (value & destMask) >> 6;
+    public Move CastlePartnerMove => Dest switch {
+        2 => new Move(0, 3, TypeCastle),
+        6 => new Move(7, 5, TypeCastle),
+        62 => new Move(63, 61, TypeCastle),
+        58 => new Move(56, 59, TypeCastle),
+        _ => new Move(0, 0, 0)
+    };
     // Type property
     public int Type => value >> 12;
+    public static int StatType(int value) => value >> 12;
     public ushort Value => value;
+    public static string TypeString(int type) => type switch {
+        TypeNormal => "Normal",
+        TypeCastle => "Castle",
+        TypeEnPassant => "EnPassant",
+        TypePawnLeap => "PawnLeap",
+        TypePromoteToBishop => "PromoteToBishop",
+        TypePromoteToKnight => "PromoteToKnight",
+        TypePromoteToRook => "PromoteToRook",
+        TypePromoteToQueen => "PromoteToQueen",
+        TypeCapturePawn  => "CapturePawn",
+        TypeCaptureKnight  => "CaptureKnight",
+        TypeCaptureBishop  => "CaptureBishop",
+        TypeCaptureRook  => "CaptureRook",
+        TypeCaptureQueen  => "CaptureQueen",
+        _ => "IncorrectFormat"
+    };
     
     // More properties
     public bool IsPromotion { get { return Type > 3 && Type < 8; } }
+    public static bool StatIsPromotion(int type) => type > 3 && type < 8;
     public bool IsNull { get { return value == 0; } }
     public bool IsEnPassant { get { return Type == TypeEnPassant; } }
     public bool IsCastle { get { return Type == TypeCastle; } }

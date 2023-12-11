@@ -73,6 +73,12 @@ public class PieceObject : ScriptableObject
         return Position;
     }
 
+    public void MoveTo(int position) {
+        Position = position;
+        offset = CoordsFromPosition(position) - Coords;
+        Coords += offset;
+    }
+
     public void Kill(int side, int index) {
         offset = Coords;
         if (side == Piece.White) {
@@ -100,7 +106,7 @@ public class PieceObject : ScriptableObject
     public void SetPosition(Vector3 position) {
         offset = new(0, 0, 0);
         Coords = position;
-        instance.transform.position = position - offset;
+        instance.transform.position = position;
     }
 
     public void SetPosition(Vector3 position, Vector3 offset) {
