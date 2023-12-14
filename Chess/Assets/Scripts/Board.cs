@@ -42,7 +42,8 @@ sealed class Board
     // King indices:
     int kingIndex, wkIndex, bkIndex;
     // Contains all the ways a chess game can end, plus "Running" for a game that has not ended.
-    public enum Status{
+    public enum Status
+    {
         Running,
         WinByCheckmate,
         WinByTimeout,
@@ -62,6 +63,8 @@ sealed class Board
     {
         // Sets all variables for new starting game
         IntBoard = StartingBoard();
+        wkIndex = kingIndex = 4;
+        bkIndex = 60;
         moveList = new List<Move>(50);
         WhiteToMove = true;
         ColorToMove = Piece.White;
@@ -74,7 +77,8 @@ sealed class Board
         StateHistory = new Stack<uint>(70);
     }
 
-    public Board(int[] boardArray) : this() {
+    public Board(int[] boardArray) : this() 
+    {
         /*
         In C#, if a method contains another method in its signature (in this case "this()),
         The method inherits from another. In this case, that means all code from first constructor
@@ -82,9 +86,16 @@ sealed class Board
         */
         // Starts game from inputted board, no state history (used for training and puzzles)
         IntBoard = boardArray;
+        for (int i = 0; i < 64; i++) {
+            if (boardArray[i] == (Piece.White | Piece.King))
+                kingIndex = wkIndex = i;
+            else if (boardArray[i] == (Piece.Black | Piece.King))
+                bkIndex = i;
+        }
     }
 
-    public Board(string FEN) {
+    public Board(string FEN) 
+    {
         IntBoard = new int[64];
         int progress = ReadFEN(FEN);
         if (progress < 1) {
@@ -107,6 +118,7 @@ sealed class Board
         if (progress < 6) {
             Fullmove = 0;
         }
+        kingIndex = ColorToMove == Piece.White ? wkIndex : bkIndex;
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
         StateHistory = new Stack<uint>(70);
     }
@@ -128,7 +140,13 @@ sealed class Board
             }
             char c = FEN[fenIndex++];
             if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')) {
-                IntBoard[(7-(boardIndex/8))*8+(boardIndex%8)] = Piece.FENChar(c);
+                int p = Piece.FENChar(c);
+                int index = (7-(boardIndex/8))*8+(boardIndex%8);
+                IntBoard[index] = p;
+                if (p == (Piece.White | Piece.King))
+                    wkIndex = index;
+                else if (p == (Piece.Black | Piece.King))
+                    bkIndex = index;
                 boardIndex++;
             } 
             else if ('1' <= c && c <= '8') {
@@ -324,7 +342,7 @@ sealed class Board
     {
         // Checks if king is currently in check
         PseudoLegalMoves();
-        foreach(Move move in moveList) {
+        foreach (Move move in moveList) {
             if (move.Dest == (OpponentColor == Piece.White ? wkIndex : bkIndex))
                 return true;
         }
@@ -341,6 +359,7 @@ sealed class Board
         int movingPiece = Piece.Type(IntBoard[start]);
         int movingColor = Piece.Color(IntBoard[start]);
 
+        // Update king index
         if (movingPiece == Piece.King) {
             if (movingColor == Piece.White) wkIndex = dest;
             else bkIndex = dest;
@@ -512,6 +531,18 @@ sealed class Board
         int start = Move.StatStart(move);
         int dest = Move.StatDest(move);
         int isSpecialPawnMove = Move.StatType(move);
+        int movingPiece = Piece.Type(IntBoard[dest]);
+        int movingColor = Piece.Color(IntBoard[dest]);
+
+
+        // Handles king index
+        if (movingPiece == Piece.King) {
+            if (movingColor == Piece.White)
+                wkIndex = start;
+            else
+                bkIndex = start;
+        }
+
 
         // Undoes Special Pawn moves
         if (isSpecialPawnMove == 1) {
@@ -567,11 +598,13 @@ sealed class Board
         {
             ColorToMove = Piece.White;
             OpponentColor = Piece.Black;
+            kingIndex = wkIndex;
         }
         else
         {
             ColorToMove = Piece.Black;
             OpponentColor = Piece.White;
+            kingIndex = bkIndex;
         }
     }
     public Move CheckMove(int start, int dest) 
@@ -608,14 +641,16 @@ sealed class Board
 
     public int[] HighlightPositions(int start) 
     {
-        PseudoLegalMoves(start);
+        Debug.Log("wk: " + wkIndex + ", bk: " + bkIndex);
+        moveList = CullIllegalMoves(PseudoLegalMoves(start).ToList());
         int[] dests = new int[moveList.Count];
         for (int i = 0; i < moveList.Count; i++)
             dests[i] = moveList[i].Dest;
         return dests;
     }
 
-    public List<Move> CullIllegalMoves(List<Move> moves) {
+    public List<Move> CullIllegalMoves(List<Move> moves) 
+    {
         List<Move> legalMoves = new(moves.Count);
         foreach (Move m in moves) {
             DoMove(m);
