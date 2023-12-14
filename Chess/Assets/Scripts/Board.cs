@@ -576,7 +576,7 @@ sealed class Board
     }
     public Move CheckMove(int start, int dest) 
     {
-        PseudoLegalMoves(start);
+        moveList = CullIllegalMoves(PseudoLegalMoves(start).ToList());
         foreach (Move m in moveList) {
             if (m.Start == start && m.Dest == dest) {
                 return m;
