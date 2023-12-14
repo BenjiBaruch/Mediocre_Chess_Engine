@@ -81,6 +81,13 @@ public readonly struct Move
     
     // More properties
     public bool IsPromotion { get { return Type > 3 && Type < 8; } }
+    public int PromotionPieceType => Type switch {
+        TypePromoteToBishop => Piece.Bishop,
+        TypePromoteToRook => Piece.Rook,
+        TypePromoteToKnight => Piece.Knight,
+        TypePromoteToQueen => Piece.Queen,
+        _ => Piece.Empty
+    };
     public static bool StatIsPromotion(int type) => type > 3 && type < 8;
     public bool IsNull { get { return value == 0; } }
     public bool IsEnPassant { get { return Type == TypeEnPassant; } }

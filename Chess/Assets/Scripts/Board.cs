@@ -310,19 +310,12 @@ sealed class Board
         Move[] moves = new Move[moveList.Count];
         moveList.CopyTo(moves);
         bool isThreatened = IsCheck();
-        foreach(Move move in moves) {
-            DoMove(move);
-            if (IsCheck()) {
-                if (isThreatened)
-                    // If all moves available result in check, and king is currently in check
-                    // Other side wins by checkmate
-                    return Status.WinByCheckmate;
-                else
-                    // If all moves available result in check, but king is not currently in check,
-                    // Its a draw by stalemate
-                    return Status.DrawByStalemate;
-            }
-            UndoMove();
+        bool canMove = CullIllegalMoves(moves.ToList()).Count > 0;
+        if (!canMove) {
+            if (isThreatened)
+                return Status.WinByCheckmate;
+            else
+                return Status.DrawByStalemate;
         }
         // If no previous end conditions were met, game is still running
         return Status.Running;
@@ -487,7 +480,8 @@ sealed class Board
             4 | 5 | 6 | 7 => 3,
             _ => 0
         };
-        StateData = (uint)castlingRights | ((uint)capturedPiece << 4) | ((uint)pawnLeapFile << 9) | ((uint)halfmoveClock << 13) | ((uint)(shortType << 12 | dest << 6 | start) << 19);
+        int isSpecialPawnMove = ((type >= 4 && type <= 7) || type == 2) ? 1 : 0;
+        StateData = (uint)castlingRights | ((uint)capturedPiece << 4) | ((uint)pawnLeapFile << 9) | ((uint)halfmoveClock << 13) | ((uint)(isSpecialPawnMove << 12 | dest << 6 | start) << 19);
         // Save state data
         StateHistory.Push(StateData);
         WhiteToMove = !WhiteToMove;
@@ -517,58 +511,56 @@ sealed class Board
         // Unpack move
         int start = Move.StatStart(move);
         int dest = Move.StatDest(move);
-        int type = Move.StatType(move);
-        // Debug.Log("Start: " + start + ", Dest: " + dest + ", Type: " + type);
+        int isSpecialPawnMove = Move.StatType(move);
 
-        switch (type)
-            {
-                // En passant un-capture
-                case 1:
-                    // Debug.Log("Undo en passant");
-                    if ((dest >> 3) == 0b010) 
-                        IntBoard[dest + 8] = Piece.WhitePawn;
-                    else 
-                        IntBoard[dest - 8] = Piece.BlackPawn;
-                    IntBoard[start] = IntBoard[dest];
-                    IntBoard[dest] = 0;
-                    break;
-                // Un-castle
-                case 2:
-                    capturedPiece = 0;
-                    IntBoard[start] = IntBoard[dest];
-                    IntBoard[dest] = 0;
-                    switch (dest)
-                    {
-                        case 1:
-                            IntBoard[0] = Piece.WhiteRook;
-                            IntBoard[3] = 0;
-                            break;
-                        case 5:
-                            IntBoard[7] = Piece.WhiteRook;
-                            IntBoard[5] = 0;
-                            break;
-                        case 57:
-                            IntBoard[56] = Piece.BlackRook;
-                            IntBoard[59] = 0;
-                            break;
-                        case 61:
-                            IntBoard[63] = Piece.BlackRook;
-                            IntBoard[61] = 0;
-                            break;
-                    }
-                    break;
-                // Pawn un-promotion
-                case 3:
-                    IntBoard[start] = Piece.Pawn | Piece.Color(IntBoard[dest]);
-                    IntBoard[dest] = capturedPiece;
-                    break;
-                // All other moves
-                default:
-                    IntBoard[start] = IntBoard[dest];
-                    IntBoard[dest] = capturedPiece;
-                    break;
-
+        // Undoes Special Pawn moves
+        if (isSpecialPawnMove == 1) {
+            if ((dest >> 3) % 7 == 0) {
+                // Undoes promotion
+                IntBoard[start] = Piece.Pawn | Piece.Color(IntBoard[dest]);
+                IntBoard[dest] = capturedPiece;
             }
+            else {
+                // Undoes En Passant
+                if ((dest >> 3) == 0b010) 
+                    IntBoard[dest + 8] = Piece.WhitePawn;
+                else 
+                    IntBoard[dest - 8] = Piece.BlackPawn;
+                IntBoard[start] = IntBoard[dest];
+                IntBoard[dest] = 0;
+            }
+        }
+        // Undoes Castle
+        else if (Piece.IsType(IntBoard[dest], Piece.King) && Math.Abs(start - dest) == 2) {
+            capturedPiece = 0;
+            IntBoard[start] = IntBoard[dest];
+            IntBoard[dest] = 0;
+            switch (dest)
+            {
+                case 2:
+                    IntBoard[0] = Piece.WhiteRook;
+                    IntBoard[3] = 0;
+                    break;
+                case 6:
+                    IntBoard[7] = Piece.WhiteRook;
+                    IntBoard[5] = 0;
+                    break;
+                case 58:
+                    IntBoard[56] = Piece.BlackRook;
+                    IntBoard[59] = 0;
+                    break;
+                case 62:
+                    IntBoard[63] = Piece.BlackRook;
+                    IntBoard[61] = 0;
+                    break;
+            }
+        }
+        // Undoes all other moves
+        else {
+            IntBoard[start] = IntBoard[dest];
+            IntBoard[dest] = capturedPiece;
+        }
+
 
         WhiteToMove = !WhiteToMove;
         if (WhiteToMove)
@@ -623,9 +615,16 @@ sealed class Board
         return dests;
     }
 
-    //public List<Move> CullIllegalMoves(List<Move> moves) {
-
-    //}
+    public List<Move> CullIllegalMoves(List<Move> moves) {
+        List<Move> legalMoves = new(moves.Count);
+        foreach (Move m in moves) {
+            DoMove(m);
+            if (!IsCheck())
+                legalMoves.Add(m);
+            UndoMove();
+        }
+        return legalMoves;
+    }
 
     void GenMoves(int pos) 
     {
@@ -667,8 +666,8 @@ sealed class Board
         if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
         if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
         if (flag == -1 && (pos2 >> 3) % 7 == 0) {
-            moveList.Add(new Move(pos1, pos2, Move.TypePromoteToKnight));
             moveList.Add(new Move(pos1, pos2, Move.TypePromoteToQueen));
+            moveList.Add(new Move(pos1, pos2, Move.TypePromoteToKnight));
         }
         else {
             if (flag == -1) flag++;

@@ -57,21 +57,7 @@ public class PieceManager : MonoBehaviour
                 continue;
             }
             // Sets piece sprite
-            Sprite sprite = pieceSprites[intBoard[i] switch {
-                Piece.White | Piece.King => 0,
-                Piece.Black | Piece.King => 1,
-                Piece.White | Piece.Queen => 2,
-                Piece.Black | Piece.Queen => 3,
-                Piece.White | Piece.Rook => 4,
-                Piece.Black | Piece.Rook => 5,
-                Piece.White | Piece.Knight => 6,
-                Piece.Black | Piece.Knight => 7,
-                Piece.White | Piece.Bishop => 8,
-                Piece.Black | Piece.Bishop => 9,
-                Piece.White | Piece.Pawn => 10,
-                Piece.Black | Piece.Pawn => 11,
-                _ => 12
-            }];
+            Sprite sprite = pieceSprites[SpriteIndex(intBoard[i])];
             // Creates GameObject for piece
             GameObject instance = Instantiate(
                 PiecePrefab, // New instance inherits from Prefab object 
@@ -86,6 +72,22 @@ public class PieceManager : MonoBehaviour
             pieces.Add(piece);
         }
     }
+
+    int SpriteIndex(int pieceCode) => pieceCode switch {
+        Piece.White | Piece.King => 0,
+        Piece.Black | Piece.King => 1,
+        Piece.White | Piece.Queen => 2,
+        Piece.Black | Piece.Queen => 3,
+        Piece.White | Piece.Rook => 4,
+        Piece.Black | Piece.Rook => 5,
+        Piece.White | Piece.Knight => 6,
+        Piece.Black | Piece.Knight => 7,
+        Piece.White | Piece.Bishop => 8,
+        Piece.Black | Piece.Bishop => 9,
+        Piece.White | Piece.Pawn => 10,
+        Piece.Black | Piece.Pawn => 11,
+        _ => 12
+    };
 
     void KillAt(int index) {
         foreach (PieceObject p in pieces)
@@ -184,6 +186,11 @@ public class PieceManager : MonoBehaviour
                     else {
                         // If move is a capture, kill captured piece
                         KillAt(move.Dest);
+                        if (move.IsPromotion) {
+                            int promotedPiece = Piece.Color(board.IntBoard[move.Start]) | move.PromotionPieceType;
+                            selectedPiece.ChangeSprite(pieceSprites[SpriteIndex(promotedPiece)]);
+                            selectedPiece.PieceCode = promotedPiece;
+                        }
                     }
                     selectedPiece.PlacePiece(mousePosition - mouseOffset);
                     board.DoMove(move);
@@ -210,6 +217,9 @@ public class PieceManager : MonoBehaviour
         else if (Input.GetKeyDown(KeyCode.Backspace)) {
             board.UndoMove();
             HandleAsymmetries(false);
+        }
+        else if (Input.GetKeyDown(KeyCode.P)) {
+            Debug.Log(board);
         }
 
         // Update all pieces
@@ -282,20 +292,23 @@ public class PieceManager : MonoBehaviour
             if (!revived) {
                 if (whiteGraveyard.Count > 0) {
                     whiteGraveyard[0].MoveTo(index);
+                    whiteGraveyard[0].PieceCode = pieceCode;
+                    whiteGraveyard[0].ChangeSprite(pieceSprites[SpriteIndex(pieceCode)]);
                     pieces.Add(whiteGraveyard[0]);
                     if (debug) Debug.Log("Piece " + whiteGraveyard[0] + " created at " + index + ".");
                     whiteGraveyard.RemoveAt(0);
                 } 
                 else if (blackGraveyard.Count > 0) {
                     blackGraveyard[0].MoveTo(index);
+                    blackGraveyard[0].PieceCode = pieceCode;
+                    blackGraveyard[0].ChangeSprite(pieceSprites[SpriteIndex(pieceCode)]);
                     pieces.Add(blackGraveyard[0]);
                     if (debug) Debug.Log("Piece " + blackGraveyard[0] + " created at " + index + ".");
                     blackGraveyard.RemoveAt(0);
                 }
                 else {
-                    if (debug) 
-                        Debug.Log("Graveyard empty, asymmetry of " + Piece.ToString(pieceCode) + 
-                                  " at " + index + " could not be resolved.");
+                    Debug.Log("Graveyard empty, asymmetry of " + Piece.ToString(pieceCode) + 
+                              " at " + index + " could not be resolved.");
                 }
             }
             boardAsymmetries.RemoveAt(0);
