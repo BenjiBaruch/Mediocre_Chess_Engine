@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.ExceptionServices;
 using UnityEngine;
 
@@ -36,7 +37,7 @@ public class PieceManager : MonoBehaviour
     void Start()
     {
         // Grabs starting position from Board class
-        board = new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+        board = new(/*"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "*/);
         int[] intBoard = board.IntBoard;
         pieces = new(32);
         whiteGraveyard = new(15);
@@ -220,6 +221,20 @@ public class PieceManager : MonoBehaviour
         }
         else if (Input.GetKeyDown(KeyCode.P)) {
             Debug.Log(board);
+        }
+        else if (Input.GetKeyDown(KeyCode.T)) {
+            Debug.Log("Starting Perft Test");
+            PerformanceTest perft = new(4, board);
+            Dictionary<string, int[]> results = perft.PerfTest(); 
+            string resultStr = "Results:";
+            foreach (string key in results.Keys) {
+                resultStr += "\n" + key + ": [";
+                int[] bits = results[key];
+                for (int i = 0; i < bits.Count()-1; i++)
+                    resultStr += bits[i] + ", ";
+                resultStr += bits[^1] + "]";
+            }
+            Debug.Log(resultStr);
         }
 
         // Update all pieces

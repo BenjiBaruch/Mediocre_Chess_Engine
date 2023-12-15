@@ -1,5 +1,8 @@
 using System.Net;
 using System.Collections.Generic;
+using System.Diagnostics;
+using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 
 class PerformanceTest {
@@ -29,7 +32,7 @@ class PerformanceTest {
     public PerformanceTest(int depth) : this(depth, new()) {}
 
     private void PerfTestRec(int i) {
-        List<Move> moves = b.PseudoLegalMoves();
+        List<Move> moves = b.CullIllegalMoves(b.PseudoLegalMoves());
         if (moves.Count == 0) {
             Board.Status s = b.GameStatus();
             switch (s) {
@@ -44,7 +47,7 @@ class PerformanceTest {
                     gameEnds[i]++;
                     break;
                 default:
-                    // Console.WriteLine("Invalid Game End error");
+                    Debug.Log("Invalid Game End error");
                     break;
             }
             return;

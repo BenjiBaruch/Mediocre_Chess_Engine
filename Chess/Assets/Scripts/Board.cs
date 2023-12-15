@@ -39,6 +39,12 @@ sealed class Board : IEquatable<Board>
     const int WQCastleMask = 0b0100; // White Queenside Castle Mask
     const int BKCastleMask = 0b0010; // Black Kingside Castle Mask
     const int BQCastleMask = 0b0001; // Black Queenside Castle Mask
+
+    // CastlePathMasks:
+    const ulong WQPathMask = 0b111UL << 2;
+    const ulong WKPathMask = 0b111UL << 4;
+    const ulong BQPathMask = 0b111UL << 58;
+    const ulong BKPathMask = 0b111UL << 60;
     // King indices:
     int kingIndex, wkIndex, bkIndex;
     // Contains all the ways a chess game can end, plus "Running" for a game that has not ended.
@@ -305,11 +311,11 @@ sealed class Board : IEquatable<Board>
 
         // Segment 5: Half-move clock
         if (fenIndex + 1 >= FEN.Length) {
-            Debug.Log("FEN failed on half-move clock (incomplete FEN string)");
+            // Debug.Log("FEN failed on half-move clock (incomplete FEN string)");
             return 4;
         }
         if (FEN[fenIndex] < '0' || FEN[fenIndex] > '9') {
-            Debug.Log("FEN failed on half-move clock (unexpected char)");
+            // Debug.Log("FEN failed on half-move clock (unexpected char)");
             return 4;
         }
         else if (FEN[fenIndex + 1] == ' ') {
@@ -317,7 +323,7 @@ sealed class Board : IEquatable<Board>
             fenIndex += 2;
         }
         else if (FEN[fenIndex + 1] < '0' || FEN[fenIndex + 1] > '9') {
-            Debug.Log("FEN failed on half-move clock (unexpected char)");
+            // Debug.Log("FEN failed on half-move clock (unexpected char)");
             return 4;
         }
         else {
@@ -327,18 +333,18 @@ sealed class Board : IEquatable<Board>
 
         // Segment 6: Fullmove number
         if (fenIndex >= FEN.Length) {
-            Debug.Log("FEN failed on full-move number (incomplete FEN string)");
+            // Debug.Log("FEN failed on full-move number (incomplete FEN string)");
             return 5;
         }
         Fullmove = 0;
         while (fenIndex < FEN.Length) {
             if (tries++ > 7) {
-                Debug.Log("FEN failed on full-move number (infinite loop)");
+                // Debug.Log("FEN failed on full-move number (infinite loop)");
                 return 5;
             } 
             Fullmove *= 10;
             if (FEN[fenIndex] < '0' || FEN[fenIndex] > '9') {
-                Debug.Log("FEN failed on full-move number (unexpected char)");
+                // Debug.Log("FEN failed on full-move number (unexpected char)");
                 return 5;
             }
             Fullmove += FEN[fenIndex] - '0';
@@ -380,8 +386,6 @@ sealed class Board : IEquatable<Board>
         // Checks if a game is finished.
         /*
         Current problems with method:
-          * For checkmate and stalemate checks, the computer checks if any move results in check
-            instead of all moves
           * Does not check repetition, timeout, or insufficient material
         */
         // If halfmove clock exceeds 50 (meaning no significant moves have occured in the past 25 moves)
@@ -565,19 +569,8 @@ sealed class Board : IEquatable<Board>
         StateData = (uint)castlingRights | ((uint)capturedPiece << 4) | ((uint)pawnLeapFile << 9) | ((uint)halfmoveClock << 13) | ((uint)(isSpecialPawnMove << 12 | dest << 6 | start) << 19);
         // Save state data
         StateHistory.Push(StateData);
-        WhiteToMove = !WhiteToMove;
-        if (WhiteToMove)
-        {
-            ColorToMove = Piece.White;
-            OpponentColor = Piece.Black;
-            kingIndex = wkIndex;
-        }
-        else
-        {
-            ColorToMove = Piece.Black;
-            OpponentColor = Piece.White;
-            kingIndex = bkIndex;
-        }
+
+        SwapTurn();
     }
 
     public void UndoMove()
@@ -656,7 +649,17 @@ sealed class Board : IEquatable<Board>
             IntBoard[dest] = capturedPiece;
         }
 
+        SwapTurn();
 
+        StateData = StateHistory.Peek();
+
+        castlingRights = (int)StateData & 0b1111;
+        capturedPiece = (int)(StateData >> 4) & 0b11111;
+        pawnLeapFile = (int)(StateData >> 9) & 0b1111;
+        halfmoveClock = (int)(StateData >> 13) & 0b111111;
+    }
+
+    void SwapTurn() {
         WhiteToMove = !WhiteToMove;
         if (WhiteToMove)
         {
@@ -670,14 +673,8 @@ sealed class Board : IEquatable<Board>
             OpponentColor = Piece.White;
             kingIndex = bkIndex;
         }
-
-        StateData = StateHistory.Peek();
-
-        castlingRights = (int)StateData & 0b1111;
-        capturedPiece = (int)(StateData >> 4) & 0b11111;
-        pawnLeapFile = (int)(StateData >> 9) & 0b1111;
-        halfmoveClock = (int)(StateData >> 13) & 0b111111;
     }
+
     public Move CheckMove(int start, int dest) 
     {
         moveList = CullIllegalMoves(PseudoLegalMoves(start).ToList());
@@ -725,6 +722,22 @@ sealed class Board : IEquatable<Board>
         Board original = Clone();
         List<Move> legalMoves = new(moves.Count);
         foreach (Move m in moves) {
+            if (m.Type == Move.TypeCastle) {
+                // Cull castles if king is in check or passes over a threatened square
+                SwapTurn();
+                ulong killMap = DrawKillMap(PseudoLegalMoves());
+                killMap &= m.Dest switch {
+                    2 => WQPathMask,
+                    6 => WKPathMask,
+                    58 => BQPathMask,
+                    62 => BKPathMask,
+                    _ => 0UL
+                };
+                SwapTurn();
+                if (killMap > 0UL) {
+                    continue;
+                }
+            }
             DoMove(m);
             if (!IsCheck())
                 legalMoves.Add(m);
@@ -732,6 +745,14 @@ sealed class Board : IEquatable<Board>
         }
         LogAsymmetries(original);
         return legalMoves;
+    }
+
+    public ulong DrawKillMap(List<Move> moves) {
+        ulong killMap = 0UL;
+        foreach (Move m in moves) {
+            killMap |= 1UL << m.Dest;
+        }
+        return killMap;
     }
 
     void GenMoves(int pos) 
