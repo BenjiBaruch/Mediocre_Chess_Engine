@@ -8,7 +8,7 @@ using TMPro;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-sealed class Board
+sealed class Board : IEquatable<Board>
 {
     // Stores letters that represent different files
     public static readonly char[] LetterCodes = new char[] {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'};
@@ -77,6 +77,34 @@ sealed class Board
         StateHistory = new Stack<uint>(70);
     }
 
+    public Board(int[] IntBoard, int wkIndex, int bkIndex, int kingIndex, bool WhiteToMove, int castlingRights, int pawnLeapFile, int halfmoveClock, int capturedPiece) 
+    {
+        this.IntBoard = (int[])IntBoard.Clone();
+        moveList = new List<Move>(50);
+        StateHistory = new Stack<uint>(70);
+        
+        this.wkIndex = wkIndex;
+        this.bkIndex = bkIndex;
+        this.kingIndex = kingIndex;
+
+        this.WhiteToMove = WhiteToMove;
+        if (WhiteToMove) {
+            ColorToMove = Piece.White;
+            OpponentColor = Piece.Black; 
+        }
+        else {
+            ColorToMove = Piece.Black;
+            OpponentColor = Piece.White;
+        }
+        
+        this.castlingRights = castlingRights;
+        this.pawnLeapFile = pawnLeapFile;
+        this.halfmoveClock = halfmoveClock;
+        this.capturedPiece = capturedPiece;
+
+        StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
+    }
+
     public Board(int[] boardArray) : this() 
     {
         /*
@@ -121,6 +149,37 @@ sealed class Board
         kingIndex = ColorToMove == Piece.White ? wkIndex : bkIndex;
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
         StateHistory = new Stack<uint>(70);
+    }
+
+    Board Clone() => new(IntBoard, wkIndex, bkIndex, kingIndex, WhiteToMove, castlingRights, pawnLeapFile, halfmoveClock, capturedPiece);
+
+    public bool Equals(Board other) => 
+        IntBoard == other.IntBoard &&
+        wkIndex == other.wkIndex &&
+        bkIndex == other.bkIndex &&
+        kingIndex == other.kingIndex &&
+        WhiteToMove == other.WhiteToMove &&
+        castlingRights == other.castlingRights &&
+        pawnLeapFile == other.pawnLeapFile &&
+        halfmoveClock == other.halfmoveClock &&
+        capturedPiece == other.capturedPiece;
+
+    void LogAsymmetries(Board other) {
+        Debug.Log("Finding asymmetries...");
+        if (IntBoard != other.IntBoard) {
+            Debug.Log("IntBoard\nThis\n" + ToString() + "\n\n Other\n" + other);
+        }
+        if (wkIndex != other.wkIndex) Debug.Log("wkIndex");
+        if (bkIndex != other.bkIndex) Debug.Log("bkIndex");
+        if (kingIndex != other.kingIndex) Debug.Log("kingIndex");
+        if (WhiteToMove != other.WhiteToMove) Debug.Log("WhiteToMove");
+        if (castlingRights != other.castlingRights) Debug.Log("castlingRights");
+        if (pawnLeapFile != other.pawnLeapFile) {
+            Debug.Log("pawnLeapFile\nThis: " + pawnLeapFile + "\nOther: " + other.pawnLeapFile);
+        }
+        if (halfmoveClock != other.halfmoveClock) Debug.Log("halfmoveClock");
+        if (capturedPiece != other.capturedPiece) Debug.Log("capturedPiece");
+        Debug.Log("done");
     }
 
     int ReadFEN(string FEN) 
@@ -641,7 +700,7 @@ sealed class Board
 
     public int[] HighlightPositions(int start) 
     {
-        Debug.Log("wk: " + wkIndex + ", bk: " + bkIndex);
+        // Debug.Log("wk: " + wkIndex + ", bk: " + bkIndex);
         moveList = CullIllegalMoves(PseudoLegalMoves(start).ToList());
         int[] dests = new int[moveList.Count];
         for (int i = 0; i < moveList.Count; i++)
@@ -651,6 +710,7 @@ sealed class Board
 
     public List<Move> CullIllegalMoves(List<Move> moves) 
     {
+        Board original = Clone();
         List<Move> legalMoves = new(moves.Count);
         foreach (Move m in moves) {
             DoMove(m);
@@ -658,6 +718,7 @@ sealed class Board
                 legalMoves.Add(m);
             UndoMove();
         }
+        LogAsymmetries(original);
         return legalMoves;
     }
 
