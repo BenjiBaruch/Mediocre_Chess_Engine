@@ -89,9 +89,11 @@ public readonly struct Move
         _ => Piece.Empty
     };
     public static bool StatIsPromotion(int type) => type > 3 && type < 8;
-    public bool IsNull { get { return value == 0; } }
-    public bool IsEnPassant { get { return Type == TypeEnPassant; } }
-    public bool IsCastle { get { return Type == TypeCastle; } }
+    public bool IsNull => value == 0;
+    public bool IsEnPassant => Type == TypeEnPassant;
+    public bool IsCastle => Type == TypeCastle;
+    public bool IsCapture => Type == 2 || (Type >= 10 && Type <= 15);
+    public bool IsNormalCapture => Type >= 10 && Type <= 15;
 
     public new string ToString { get { 
         return "" + Board.LetterCodes[StartCol] + (StartRow+1) + " --> " + Board.LetterCodes[DestCol] + (DestRow+1); 

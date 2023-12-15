@@ -7,6 +7,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+using Chess;
 
 sealed class Board : IEquatable<Board>
 {
@@ -47,6 +48,9 @@ sealed class Board : IEquatable<Board>
     const ulong BKPathMask = 0b111UL << 60;
     // King indices:
     int kingIndex, wkIndex, bkIndex;
+    # nullable enable
+    Search? search = null;
+    # nullable disable
     // Contains all the ways a chess game can end, plus "Running" for a game that has not ended.
     public enum Status
     {
@@ -381,6 +385,10 @@ sealed class Board : IEquatable<Board>
         return new Board(boardArray);
     }
 
+    public void SetSearchObject(Search search) {
+        this.search = search;
+    }
+
     public Status GameStatus() 
     {
         // Checks if a game is finished.
@@ -432,6 +440,11 @@ sealed class Board : IEquatable<Board>
         if (movingPiece == Piece.King) {
             if (movingColor == Piece.White) wkIndex = dest;
             else bkIndex = dest;
+        }
+
+        // Stop recursive search if king is captured
+        if (search != null && Piece.IsType(IntBoard[dest], Piece.King)) {
+            search.DeadKing = true;
         }
 
         // Unpack state
@@ -746,6 +759,8 @@ sealed class Board : IEquatable<Board>
         LogAsymmetries(original);
         return legalMoves;
     }
+    
+    public List<Move> LegalMoves() => CullIllegalMoves(PseudoLegalMoves());
 
     public ulong DrawKillMap(List<Move> moves) {
         ulong killMap = 0UL;

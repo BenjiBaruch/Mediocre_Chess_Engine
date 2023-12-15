@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
+using Chess;
 using UnityEngine;
 
 public class PieceManager : MonoBehaviour
@@ -31,14 +32,17 @@ public class PieceManager : MonoBehaviour
     public static Vector3 MouseGravity = new(0.8F, 0.8F, 0.8F);
     static Vector3 dragOffset = new(0, 0, -1);
     Board board;
+    Search search;
     int highlightedTile;
 
     // Start is called before the first frame update
     void Start()
     {
         // Grabs starting position from Board class
-        board = new(/*"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "*/);
+        board = new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         int[] intBoard = board.IntBoard;
+        search = new(board);
+        board.SetSearchObject(search);
         pieces = new(32);
         whiteGraveyard = new(15);
         blackGraveyard = new(15);
@@ -235,6 +239,10 @@ public class PieceManager : MonoBehaviour
                 resultStr += bits[^1] + "]";
             }
             Debug.Log(resultStr);
+        }
+        else if (Input.GetKeyDown(KeyCode.M)) {
+            board.DoMove(search.BestMove(5));
+            HandleAsymmetries(false);
         }
 
         // Update all pieces

@@ -205,12 +205,12 @@ public static class Evaluate
                         score += MobilityPoint(board, pos, pos + 10);
                         score += MobilityPoint(board, pos, pos + 6);
                     }
-                    if (((pos >> 3) % 8) + ((pos & 0b111) % 8) > 0 &&
-                        whitePov ? (Piece.IsType(board[pos-9], Piece.WhitePawn) || Piece.IsType(board[pos-7], Piece.WhitePawn))
-                                 : (Piece.IsType(board[pos+7], Piece.BlackPawn) || Piece.IsType(board[pos+8], Piece.BlackPawn))) {
-                        // Boost score if at pawn outpost (i.e. is being protected by pawn)
-                        score += 20;
-                    }
+                    // if (((pos >> 3) % 7) > 0 && ((pos & 0b111) % 7) > 0 &&
+                    //     whitePov ? (Piece.IsType(board[pos-9], Piece.WhitePawn) || Piece.IsType(board[pos-7], Piece.WhitePawn))
+                    //              : (Piece.IsType(board[pos+7], Piece.BlackPawn) || Piece.IsType(board[pos+9], Piece.BlackPawn))) {
+                    //     // Boost score if at pawn outpost (i.e. is being protected by pawn)
+                    //     score += 20;
+                    // }
                     break;
                 case Piece.Pawn:
                     score = 85 + pst_pawn[pst_pos];
