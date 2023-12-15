@@ -75,13 +75,13 @@ sealed class Board : IEquatable<Board>
         capturedPiece = 0;
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
         StateHistory = new Stack<uint>(70);
+        StateHistory.Push(StateData);
     }
 
     public Board(int[] IntBoard, int wkIndex, int bkIndex, int kingIndex, bool WhiteToMove, int castlingRights, int pawnLeapFile, int halfmoveClock, int capturedPiece) 
     {
         this.IntBoard = (int[])IntBoard.Clone();
         moveList = new List<Move>(50);
-        StateHistory = new Stack<uint>(70);
         
         this.wkIndex = wkIndex;
         this.bkIndex = bkIndex;
@@ -103,6 +103,8 @@ sealed class Board : IEquatable<Board>
         this.capturedPiece = capturedPiece;
 
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
+        StateHistory = new Stack<uint>(70);
+        StateHistory.Push(StateData);
     }
 
     public Board(int[] boardArray) : this() 
@@ -149,6 +151,7 @@ sealed class Board : IEquatable<Board>
         kingIndex = ColorToMove == Piece.White ? wkIndex : bkIndex;
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
         StateHistory = new Stack<uint>(70);
+        StateHistory.Push(StateData);
     }
 
     Board Clone() => new(IntBoard, wkIndex, bkIndex, kingIndex, WhiteToMove, castlingRights, pawnLeapFile, halfmoveClock, capturedPiece);
@@ -165,21 +168,24 @@ sealed class Board : IEquatable<Board>
         capturedPiece == other.capturedPiece;
 
     void LogAsymmetries(Board other) {
-        Debug.Log("Finding asymmetries...");
-        if (IntBoard != other.IntBoard) {
+        if (!Enumerable.SequenceEqual(IntBoard, other.IntBoard)) {
             Debug.Log("IntBoard\nThis\n" + ToString() + "\n\n Other\n" + other);
         }
         if (wkIndex != other.wkIndex) Debug.Log("wkIndex");
         if (bkIndex != other.bkIndex) Debug.Log("bkIndex");
-        if (kingIndex != other.kingIndex) Debug.Log("kingIndex");
+        if (kingIndex != other.kingIndex) {
+            Debug.Log("kingIndex\nThis: " + kingIndex + "\nOther: " + other.kingIndex +
+                    "\nthis.wk: " + wkIndex + ", this.bk: " + bkIndex);
+        }
         if (WhiteToMove != other.WhiteToMove) Debug.Log("WhiteToMove");
         if (castlingRights != other.castlingRights) Debug.Log("castlingRights");
         if (pawnLeapFile != other.pawnLeapFile) {
             Debug.Log("pawnLeapFile\nThis: " + pawnLeapFile + "\nOther: " + other.pawnLeapFile);
         }
         if (halfmoveClock != other.halfmoveClock) Debug.Log("halfmoveClock");
-        if (capturedPiece != other.capturedPiece) Debug.Log("capturedPiece");
-        Debug.Log("done");
+        if (capturedPiece != other.capturedPiece) {
+            Debug.Log("capturedPiece\nThis: " + Piece.ToString(capturedPiece) + "\nOther: " + Piece.ToString(other.capturedPiece));
+        }
     }
 
     int ReadFEN(string FEN) 
@@ -424,9 +430,6 @@ sealed class Board : IEquatable<Board>
             else bkIndex = dest;
         }
 
-        if (movingColor == Piece.White) kingIndex = wkIndex;
-        else kingIndex = bkIndex;
-
         // Unpack state
         castlingRights = (int)(StateData & 0b1111);
         pawnLeapFile = 8;
@@ -567,11 +570,13 @@ sealed class Board : IEquatable<Board>
         {
             ColorToMove = Piece.White;
             OpponentColor = Piece.Black;
+            kingIndex = wkIndex;
         }
         else
         {
             ColorToMove = Piece.Black;
             OpponentColor = Piece.White;
+            kingIndex = bkIndex;
         }
     }
 
@@ -665,6 +670,13 @@ sealed class Board : IEquatable<Board>
             OpponentColor = Piece.White;
             kingIndex = bkIndex;
         }
+
+        StateData = StateHistory.Peek();
+
+        castlingRights = (int)StateData & 0b1111;
+        capturedPiece = (int)(StateData >> 4) & 0b11111;
+        pawnLeapFile = (int)(StateData >> 9) & 0b1111;
+        halfmoveClock = (int)(StateData >> 13) & 0b111111;
     }
     public Move CheckMove(int start, int dest) 
     {
