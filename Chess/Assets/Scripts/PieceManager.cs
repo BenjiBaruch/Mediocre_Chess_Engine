@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
-using Chess;
 using UnityEngine;
 
 public class PieceManager : MonoBehaviour
@@ -34,12 +33,13 @@ public class PieceManager : MonoBehaviour
     Board board;
     Search search;
     int highlightedTile;
+    int doMoveIn;
 
     // Start is called before the first frame update
     void Start()
     {
         // Grabs starting position from Board class
-        board = new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+        board = new(/*"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "*/);
         int[] intBoard = board.IntBoard;
         search = new(board);
         board.SetSearchObject(search);
@@ -48,6 +48,7 @@ public class PieceManager : MonoBehaviour
         blackGraveyard = new(15);
         highlights = new SpriteRenderer[64];
         highlightedTile = -1;
+        doMoveIn = 0;
         for (int i = 0; i < 64; i++) {
             Vector3 tileCoords = PieceObject.CoordsFromPosition(i);
             // Generates highlight circle for tile
@@ -199,6 +200,7 @@ public class PieceManager : MonoBehaviour
                     }
                     selectedPiece.PlacePiece(mousePosition - mouseOffset);
                     board.DoMove(move);
+                    doMoveIn = 60;
                 }
                 // Deselect piece
                 selectedPiece = null;
@@ -213,8 +215,15 @@ public class PieceManager : MonoBehaviour
             }
             highlightedTile = mouseTile;
         }
+        if (doMoveIn > 0) {
+            doMoveIn--;
+            if (doMoveIn == 0) {
+                board.DoMove(search.BestMove(4));
+                HandleAsymmetries(false);
+            }
+        }
 
-        // Use spacebar to check for board <-> game assymetries
+        // Use spacebar to check for board <-> game asymmetries
         if (Input.GetKeyDown(KeyCode.Space)) {
             HandleAsymmetries(true);
         }
@@ -241,7 +250,8 @@ public class PieceManager : MonoBehaviour
             Debug.Log(resultStr);
         }
         else if (Input.GetKeyDown(KeyCode.M)) {
-            board.DoMove(search.BestMove(5));
+            board.DoMove(search.BestMove(4));
+            doMoveIn = 60;
             HandleAsymmetries(false);
         }
 

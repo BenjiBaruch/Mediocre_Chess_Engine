@@ -7,7 +7,6 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-using Chess;
 
 sealed class Board : IEquatable<Board>
 {
