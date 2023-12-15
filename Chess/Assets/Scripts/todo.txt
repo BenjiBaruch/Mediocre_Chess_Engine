@@ -1,0 +1,13 @@
+To-do
+
+* Bug-fix move generation with Perfts
+* Optimize cullillegalmoves (is currently brute-force)
+* Pit the robots against each other
+* Bug-fix quiescence extensions
+* Move sorting
+* Iterative deepening
+* Implement kill maps and wrap them into eval
+* Implement check detection and check search extensions
+* Optimize move generation
+* Implement Zobrist hashing
+* Improve pawn evaluation and implement pawn hashing

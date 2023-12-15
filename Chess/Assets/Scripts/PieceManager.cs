@@ -31,7 +31,6 @@ public class PieceManager : MonoBehaviour
     public static Vector3 MouseGravity = new(0.8F, 0.8F, 0.8F);
     static Vector3 dragOffset = new(0, 0, -1);
     Board board;
-    Search search;
     int highlightedTile;
     int doMoveIn;
 
@@ -41,8 +40,6 @@ public class PieceManager : MonoBehaviour
         // Grabs starting position from Board class
         board = new(/*"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "*/);
         int[] intBoard = board.IntBoard;
-        search = new(board);
-        board.SetSearchObject(search);
         pieces = new(32);
         whiteGraveyard = new(15);
         blackGraveyard = new(15);
@@ -218,7 +215,7 @@ public class PieceManager : MonoBehaviour
         if (doMoveIn > 0) {
             doMoveIn--;
             if (doMoveIn == 0) {
-                board.DoMove(search.BestMove(4));
+                // board.DoMove(search.BestMove(4));
                 HandleAsymmetries(false);
             }
         }
@@ -250,7 +247,7 @@ public class PieceManager : MonoBehaviour
             Debug.Log(resultStr);
         }
         else if (Input.GetKeyDown(KeyCode.M)) {
-            board.DoMove(search.BestMove(4));
+            // board.DoMove(search.BestMove(4));
             doMoveIn = 60;
             HandleAsymmetries(false);
         }

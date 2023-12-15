@@ -47,9 +47,6 @@ sealed class Board : IEquatable<Board>
     const ulong BKPathMask = 0b111UL << 60;
     // King indices:
     int kingIndex, wkIndex, bkIndex;
-    # nullable enable
-    Search? search = null;
-    # nullable disable
     // Contains all the ways a chess game can end, plus "Running" for a game that has not ended.
     public enum Status
     {
@@ -116,6 +113,41 @@ sealed class Board : IEquatable<Board>
         StateHistory.Push(StateData);
     }
 
+    public Board(BoardStruct b) {
+        IntBoard = b.IntBoard;
+        moveList = new List<Move>(50);
+
+        WhiteToMove = b.WhiteToMove;
+        if (WhiteToMove) {
+            ColorToMove = Piece.White;
+            OpponentColor = Piece.Black; 
+        }
+        else {
+            ColorToMove = Piece.Black;
+            OpponentColor = Piece.White;
+        }
+
+        for (int i = 0; i < 64; i++) {
+            if (IntBoard[i] == (Piece.White | Piece.King)) {
+                wkIndex = i;
+            }
+            if (IntBoard[i] == (Piece.Black | Piece.King)) {
+                bkIndex = i;
+            }
+        }
+
+        kingIndex = WhiteToMove ? wkIndex : bkIndex;
+
+        castlingRights = b.CastlingRights;
+        pawnLeapFile = b.PawnLeapFile;
+        halfmoveClock = b.HalfmoveClock;
+        capturedPiece = 0;
+
+        StateData = (uint)(castlingRights | (pawnLeapFile << 9) | (halfmoveClock << 13));
+        StateHistory = new Stack<uint>(70);
+        StateHistory.Push(StateData);
+    }
+
     public Board(int[] boardArray) : this() 
     {
         /*
@@ -165,6 +197,8 @@ sealed class Board : IEquatable<Board>
 
     Board Clone() => new(IntBoard, wkIndex, bkIndex, kingIndex, WhiteToMove, castlingRights, pawnLeapFile, halfmoveClock, capturedPiece);
 
+    public BoardStruct ToStruct() => new(IntBoard, WhiteToMove, castlingRights, pawnLeapFile, halfmoveClock);
+    
     public bool Equals(Board other) => 
         IntBoard == other.IntBoard &&
         wkIndex == other.wkIndex &&
@@ -383,11 +417,6 @@ sealed class Board : IEquatable<Board>
         // Blank state history
         return new Board(boardArray);
     }
-
-    public void SetSearchObject(Search search) {
-        this.search = search;
-    }
-
     public Status GameStatus() 
     {
         // Checks if a game is finished.
@@ -439,11 +468,6 @@ sealed class Board : IEquatable<Board>
         if (movingPiece == Piece.King) {
             if (movingColor == Piece.White) wkIndex = dest;
             else bkIndex = dest;
-        }
-
-        // Stop recursive search if king is captured
-        if (search != null && Piece.IsType(IntBoard[dest], Piece.King)) {
-            search.DeadKing = true;
         }
 
         // Unpack state
