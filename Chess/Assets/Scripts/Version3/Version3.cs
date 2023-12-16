@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using Search = V2.Search;
+using Search = V3.Search;
 using UnityEngine;
 
-sealed class Version2 : ChessAbstract
+sealed class Version3 : ChessAbstract
 {
     public override string Name { get; }
     public override string Version { get; }
-    public Version2()
+    public Version3()
     {
-        Name = "Quiessence";
-        Version = "2";
+        Name = "Move Sorting";
+        Version = "3";
     }
     public override Move GetMove(BoardStruct b, double timeLimit)
     {

@@ -1,9 +1,10 @@
 ﻿using System;
+using UnityEngine;
 
-abstract class ChessAbstract
+public abstract class ChessAbstract : MonoBehaviour
 {
-    protected abstract string Name { get; }
-    protected abstract string Version { get; }
-    protected bool Side;
+    public abstract string Name { get; }
+    public abstract string Version { get; }
+    public bool Side { get; set; }
     public abstract Move GetMove(BoardStruct b, double timeLimit);
 }

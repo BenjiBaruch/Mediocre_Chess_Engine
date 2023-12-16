@@ -2,14 +2,14 @@
 using System.Collections.Generic;
 using System.Text;
 using V1;
+using UnityEngine;
 
 sealed class Version1 : ChessAbstract
 {
-    protected override string Name { get; }
-    protected override string Version { get; }
-    public Version1(bool side)
+    public override string Name { get; }
+    public override string Version { get; }
+    public Version1()
     {
-        Side = side;
         Name = "Alpha-Beta w/o Quiessence";
         Version = "1";
     }

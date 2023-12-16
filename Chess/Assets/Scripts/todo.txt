@@ -2,9 +2,7 @@ To-do
 
 * Bug-fix move generation with Perfts
 * Optimize cullillegalmoves (is currently brute-force)
-* Pit the robots against each other
-* Bug-fix quiescence extensions
-* Move sorting
+* Improve quiessence with check extensions and that one other thing in that article
 * Iterative deepening
 * Implement kill maps and wrap them into eval
 * Implement check detection and check search extensions

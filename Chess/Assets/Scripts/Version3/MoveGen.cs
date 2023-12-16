@@ -1,15 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Diagnostics;
-using System.Security.Cryptography;
-using System.Linq;
-using TMPro;
-using UnityEngine;
-using Debug = UnityEngine.Debug;
-using MoveGen = V1.MoveGen;
+using Utils;
 
-namespace V1 {
+namespace V3
+{
     sealed class MoveGen
     {
         // Stores letters that represent different files
@@ -68,10 +62,10 @@ namespace V1 {
             Terminated
         }
         // List of legal moves in current position
-        List<Move> moveList; 
+        PriorityQueue<Move, int> moveList; 
         public MoveGen(BoardStruct b) {
             IntBoard = b.IntBoard;
-            moveList = new List<Move>(50);
+            moveList = new PriorityQueue<Move, int>(50);
 
             WhiteToMove = b.WhiteToMove;
             if (WhiteToMove) {
@@ -111,14 +105,12 @@ namespace V1 {
         public void SetSearchObject(Search search) {
             this.search = search;
         }
-        public void WriteName() {
-            Debug.Log("v1 MoveGen class");
-        }
         public bool IsCheck() 
         {
             // Checks if king is currently in check
             PseudoLegalMoves();
-            foreach (Move move in moveList) {
+            while (moveList.Count > 0) {
+                Move move = moveList.Dequeue();
                 if (move.Dest == (OpponentColor == Piece.White ? wkIndex : bkIndex))
                     return true;
             }
@@ -387,9 +379,9 @@ namespace V1 {
             }
         }
 
-        public List<Move> PseudoLegalMoves()
+        public PriorityQueue<Move, int> PseudoLegalMoves()
         {
-            moveList = new List<Move>(50);
+            moveList = new(50);
 
             for (int pos = 0; pos < 64; pos++)
                 if (Piece.IsColor(IntBoard[pos], ColorToMove))
@@ -416,10 +408,12 @@ namespace V1 {
             }
         }
 
-        public List<Move> CullIllegalMoves(List<Move> moves) 
+        public PriorityQueue<Move, int> CullIllegalMoves(PriorityQueue<Move, int> moveList) 
         {
-            Board original = Clone();
-            List<Move> legalMoves = new(moves.Count);
+            PriorityQueue<Move, int> legalMoves = new(moveList.Count);
+            List<Move> moves = new(moveList.Count);
+            while (moveList.Count > 0)
+                moves.Add(moveList.Dequeue());
             foreach (Move m in moves) {
                 if (m.Type == Move.TypeCastle) {
                     // Cull castles if king is in check or passes over a threatened square
@@ -439,18 +433,18 @@ namespace V1 {
                 }
                 DoMove(m);
                 if (!IsCheck())
-                    legalMoves.Add(m);
+                    legalMoves.Enqueue(m, m.MinScore);
                 UndoMove();
             }
             return legalMoves;
         }
         
-        public List<Move> LegalMoves() => CullIllegalMoves(PseudoLegalMoves());
+        public PriorityQueue<Move, int> LegalMoves() => CullIllegalMoves(PseudoLegalMoves());
 
-        public ulong DrawKillMap(List<Move> moves) {
+        public ulong DrawKillMap(PriorityQueue<Move, int> moves) {
             ulong killMap = 0UL;
-            foreach (Move m in moves) {
-                killMap |= 1UL << m.Dest;
+            while (moves.Count > 0) {
+                killMap |= 1UL << moves.Dequeue().Dest;
             }
             return killMap;
         }    
@@ -461,14 +455,17 @@ namespace V1 {
             if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
             if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
             if (flag == -1 && (pos2 >> 3) % 7 == 0) {
-                moveList.Add(new Move(pos1, pos2, Move.TypePromoteToQueen));
-                moveList.Add(new Move(pos1, pos2, Move.TypePromoteToKnight));
+                Move move1 = new(pos1, pos2, Move.TypePromoteToQueen);
+                Move move2 = new(pos1, pos2, Move.TypePromoteToKnight);
+                moveList.Enqueue(move1, move1.MinScore);
+                moveList.Enqueue(move2, move2.MinScore);
             }
             else {
                 if (flag == -1) flag++;
                 if (Piece.IsColor(IntBoard[pos2], OpponentColor) && flag == Move.TypeNormal)
                     flag = Piece.Type(IntBoard[pos2]) + 8;
-                moveList.Add(new Move(pos1, pos2, flag));
+                Move m = new(pos1, pos2, flag);
+                moveList.Enqueue(m, m.MinScore);
             }
         }
 

@@ -16,6 +16,15 @@ public class PieceManager : MonoBehaviour
     public Sprite[] pieceSprites;
     // Prefab contains the base GameObject of each piece, set in Unity editor
     public GameObject PiecePrefab, HighlightPrefab;
+    /*
+    Modes:
+    0: Player v Player
+    1: Player v CPU
+    2: CPU1 v CPU2
+    */
+    public int Mode;
+    // Chess AI classes
+    public ChessAbstract CPU1, CPU2;
     SpriteRenderer[] highlights;
     // Stores whether mouse is currently down
     bool mouseDrag = false;
@@ -33,6 +42,7 @@ public class PieceManager : MonoBehaviour
     Board board;
     int highlightedTile;
     int doMoveIn;
+    bool AITurn;
 
     // Start is called before the first frame update
     void Start()
@@ -40,9 +50,12 @@ public class PieceManager : MonoBehaviour
         // Grabs starting position from Board class
         board = new(/*"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "*/);
         int[] intBoard = board.IntBoard;
+        AITurn = false;
         pieces = new(32);
         whiteGraveyard = new(15);
         blackGraveyard = new(15);
+        CPU1.Side = true;
+        CPU2.Side = false;
         highlights = new SpriteRenderer[64];
         highlightedTile = -1;
         doMoveIn = 0;
@@ -214,9 +227,19 @@ public class PieceManager : MonoBehaviour
         }
         if (doMoveIn > 0) {
             doMoveIn--;
-            if (doMoveIn == 0) {
-                // board.DoMove(search.BestMove(4));
+            if (doMoveIn == 0 && Mode > 0) {
+                Move m;
+                if (Mode == 2) {
+                    AITurn = !AITurn;
+                    m = AITurn ? CPU1.GetMove(board.ToStruct(), 1000L) : CPU2.GetMove(board.ToStruct(), 1000L);
+                } else {
+                    m = CPU1.GetMove(board.ToStruct(), 1000L);
+                }
+                board.DoMove(m);
                 HandleAsymmetries(false);
+                if (Mode == 2) {
+                    doMoveIn = 60;
+                }
             }
         }
 

@@ -70,9 +70,10 @@ namespace V2 {
         public Move BestMove(int depth) 
         {
             List<Move> moves = board.LegalMoves();
+            if (moves.Count == 0) return new(0);
             int highestScore = int.MinValue;
             Break = false;
-            Move bestMove = new Move(0);
+            Move bestMove = new(0);
             foreach (Move m in moves) {
                 DeadKing = false;
                 board.DoMove(m);

@@ -6,7 +6,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
 
-namespace V1 {
+namespace V4 {
     public static class Evaluate
     {
     // Piece Square Tables:
@@ -95,10 +95,6 @@ namespace V1 {
         static int GetPhase(int[] board) 
         {
             return 0;
-        }
-
-        public static void WriteName() {
-            Debug.Log("v1 Eval class");
         }
 
         static int MobilityRay(int[] board, int pos, int offset, int emptyBoost, int captureBoost, int defendBoost, int color) 

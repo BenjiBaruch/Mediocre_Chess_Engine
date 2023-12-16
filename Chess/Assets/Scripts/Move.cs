@@ -41,6 +41,35 @@ public readonly struct Move
     }
 
     public Move(int value) { this.value = (ushort)value; }
+
+    public int TopScore => (value >> 12) switch {
+            TypePromoteToQueen => 12,
+            TypePromoteToKnight => 11,
+            TypeCaptureQueen => 10,
+            TypeCaptureRook => 9,
+            TypeCaptureBishop => 8,
+            TypeCaptureKnight => 8,
+            TypeEnPassant => 5,
+            TypeCastle => 4,
+            TypeCapturePawn => 3,
+            TypePawnLeap => 2,
+            TypeNormal => 1,
+            _ => 0
+        };
+    public int MinScore => (value >> 12) switch {
+            TypePromoteToQueen => 0,
+            TypePromoteToKnight => 1,
+            TypeCaptureQueen => 2,
+            TypeCaptureRook => 3,
+            TypeCaptureBishop => 4,
+            TypeCaptureKnight => 5,
+            TypeEnPassant => 7,
+            TypeCastle => 8,
+            TypeCapturePawn => 9,
+            TypePawnLeap => 10,
+            TypeNormal => 11,
+            _ => 12
+        };
     
     // Position properties
     public int Start => value & startMask;
@@ -89,6 +118,7 @@ public readonly struct Move
         _ => Piece.Empty
     };
     public static bool StatIsPromotion(int type) => type > 3 && type < 8;
+
     public bool IsNull => value == 0;
     public bool IsEnPassant => Type == TypeEnPassant;
     public bool IsCastle => Type == TypeCastle;

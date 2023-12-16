@@ -6,11 +6,11 @@ using System.Reflection;
 using System.Text;
 using Unity.VisualScripting;
 using UnityEngine;
+using Utils;
 using Debug = UnityEngine.Debug;
-using Search = V1.Search;
 
-namespace V1 {
-    class Search
+namespace V4 {
+    public class Search
     {
         readonly MoveGen board;
         public bool DeadKing { get; set; }
@@ -38,11 +38,12 @@ namespace V1 {
             //    return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
             //}
     //
-            List<Move> moves = board.PseudoLegalMoves();
+            PriorityQueue<Move, int> moves = board.PseudoLegalMoves();
             if (depth > 3) 
                 moves = board.CullIllegalMoves(moves);
 
-            foreach (Move m in moves) {
+            while (moves.Count > 0) {
+                Move m = moves.Dequeue();
                 if (depth < 1 && !m.IsNormalCapture) {
                     // Skip quiet moves (non-captures) if search depth is exceeded
                     continue;
@@ -69,11 +70,13 @@ namespace V1 {
         }
         public Move BestMove(int depth) 
         {
-            List<Move> moves = board.LegalMoves();
+            PriorityQueue<Move, int> moves = board.LegalMoves();
+            if (moves.Count == 0) return new(0);
             int highestScore = int.MinValue;
             Break = false;
             Move bestMove = new(0);
-            foreach (Move m in moves) {
+            while (moves.Count > 0) {
+                Move m = moves.Dequeue();
                 DeadKing = false;
                 board.DoMove(m);
                 int score = -SearchRec(depth-1, int.MinValue/2, int.MaxValue/2);
