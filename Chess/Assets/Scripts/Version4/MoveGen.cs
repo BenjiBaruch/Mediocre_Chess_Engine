@@ -61,6 +61,7 @@ namespace V4
             DrawByAgreement,
             Terminated
         }
+        public long Hash { get; set; }
         // List of legal moves in current position
         PriorityQueue<Move, int> moveList; 
         public MoveGen(BoardStruct b) {
@@ -96,17 +97,17 @@ namespace V4
             StateData = (uint)(castlingRights | (pawnLeapFile << 9) | (halfmoveClock << 13));
             StateHistory = new Stack<uint>(70);
             StateHistory.Push(StateData);
+
+            Hash = Zobrist.HashBoard(this);
         }
 
-        Board Clone() => new(IntBoard, wkIndex, bkIndex, kingIndex, WhiteToMove, castlingRights, pawnLeapFile, halfmoveClock, capturedPiece);
+        MoveGen Clone() => new(ToStruct());
 
         public BoardStruct ToStruct() => new(IntBoard, WhiteToMove, castlingRights, pawnLeapFile, halfmoveClock);
 
         public void SetSearchObject(Search search) {
             this.search = search;
         }
-
-        public long Hash() => Zobrist.HashBoard(this);
         public bool IsCheck() 
         {
             // Checks if king is currently in check
@@ -142,8 +143,28 @@ namespace V4
 
             // Unpack state
             castlingRights = (int)(StateData & 0b1111);
+            Hash ^= Zobrist.pawnLeapFilesHash[(StateData >> 9) & 0b1111];
             pawnLeapFile = 8;
             halfmoveClock = (int)(((StateData >> 13) & 0b111111) + 1);
+
+            if (WhiteToMove) {
+                Hash ^= Zobrist.whitePieceHash[movingPiece, start];
+                if (!move.IsPromotion) {
+                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
+                }
+                if (IntBoard[dest] > 0) {
+                    Hash ^= Zobrist.blackPieceHash[movingPiece, dest];
+                }
+            }
+            else {
+                Hash ^= Zobrist.blackPieceHash[movingPiece, start];
+                if (!move.IsPromotion) {
+                    Hash ^= Zobrist.blackPieceHash[movingPiece, dest];
+                }
+                if (IntBoard[dest] > 0) {
+                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
+                }
+            }
 
             // Handle pawn promotion moves
             if (move.IsPromotion)
@@ -166,6 +187,10 @@ namespace V4
                         IntBoard[dest] = Piece.Rook | movingColor;
                         break;
                 }
+                if (WhiteToMove)
+                    Hash ^= Zobrist.whitePieceHash[IntBoard[dest], dest];
+                else
+                    Hash ^= Zobrist.whitePieceHash[IntBoard[dest], dest];
             }
             // Handles all other moves
             else switch (type)
@@ -175,29 +200,35 @@ namespace V4
                     capturedPiece = 0;
                     IntBoard[dest] = IntBoard[start];
                     IntBoard[start] = 0;
+                    Hash ^= Zobrist.castleRightsHash[castlingRights];
                     switch (dest)
                     {
                         case 2:
                             IntBoard[0] = 0;
                             IntBoard[3] = Piece.WhiteRook;
+                            Hash ^= Zobrist.whitePieceHash[Piece.Rook, 0] ^ Zobrist.whitePieceHash[Piece.Rook, 3];
                             castlingRights &= 0b0011;
                             break;
                         case 6:
                             IntBoard[7] = 0;
                             IntBoard[5] = Piece.WhiteRook;
+                            Hash ^= Zobrist.whitePieceHash[Piece.Rook, 7] ^ Zobrist.whitePieceHash[Piece.Rook, 5];
                             castlingRights &= 0b0011;
                             break;
                         case 58:
                             IntBoard[56] = 0;
                             IntBoard[59] = Piece.BlackRook;
+                            Hash ^= Zobrist.blackPieceHash[Piece.Rook, 56] ^ Zobrist.blackPieceHash[Piece.Rook, 59];
                             castlingRights &= 0b1100;
                             break;
                         case 62:
                             IntBoard[63] = 0;
                             IntBoard[61] = Piece.BlackRook;
+                            Hash ^= Zobrist.blackPieceHash[Piece.Rook, 63] ^ Zobrist.blackPieceHash[Piece.Rook, 61];
                             castlingRights &= 0b1100;
                             break;
                     }
+                    Hash ^= Zobrist.castleRightsHash[castlingRights];
                     break;
                 // En passant captures
                 case Move.TypeEnPassant:
@@ -205,11 +236,13 @@ namespace V4
                     {
                         capturedPiece = Piece.WhitePawn;
                         IntBoard[dest + 8] = 0;
+                        Hash ^= Zobrist.whitePieceHash[Piece.WhitePawn, dest + 8];
                     }
                     else
                     {
                         capturedPiece = Piece.BlackPawn;
                         IntBoard[dest - 8] = 0;
+                        Hash ^= Zobrist.blackPieceHash[Piece.BlackPawn, dest - 8];
                     }
                     IntBoard[dest] = IntBoard[start];
                     IntBoard[start] = 0;
@@ -227,12 +260,15 @@ namespace V4
                     if (movingPiece == Piece.King)
                     {
                         // King moves remove castling rights
+                        Hash ^= Zobrist.castleRightsHash[castlingRights];
                         if (movingColor == Piece.White) castlingRights &= 0b0011;
                         else castlingRights &= 0b1100;
+                        Hash ^= Zobrist.castleRightsHash[castlingRights];
                     }
                     else if (movingPiece == Piece.Rook)
                     {
                         // Rook moves remove castling rights on their side
+                        Hash ^= Zobrist.castleRightsHash[castlingRights];
                         switch (start)
                         {
                             case 0:
@@ -248,6 +284,7 @@ namespace V4
                                 castlingRights &= 0b1110;
                                 break;
                         }
+                        Hash ^= Zobrist.castleRightsHash[castlingRights];
                     }
                     else if (movingPiece == Piece.Pawn) {
                         halfmoveClock = 0; // Reset halfmove clock if pawn is moved
@@ -261,6 +298,8 @@ namespace V4
             if (capturedPiece != 0) {
                 halfmoveClock = 0; // Reset halfmove clock if piece is captured 
             } 
+
+            Hash ^= Zobrist.pawnLeapFilesHash[pawnLeapFile & 0b1111];
 
             // Repack state data
             // Format: MMMMMMMMMMMMMMHHHHHHLLLLPPPPPCCCC, 
@@ -284,11 +323,15 @@ namespace V4
             // Unpack state data
             StateData = StateHistory.Pop();
 
+            Hash ^= Zobrist.castleRightsHash[castlingRights] ^ Zobrist.pawnLeapFilesHash[pawnLeapFile];
+
             castlingRights = (int)StateData & 0b1111;
             capturedPiece = (int)(StateData >> 4) & 0b11111;
             pawnLeapFile = (int)(StateData >> 9) & 0b1111;
             halfmoveClock = (int)(StateData >> 13) & 0b111111;
             int move = (int)(StateData >> 19);
+
+            Hash ^= Zobrist.castleRightsHash[castlingRights] ^ Zobrist.pawnLeapFilesHash[pawnLeapFile];
 
             // Unpack move
             int start = Move.StatStart(move);
@@ -296,7 +339,6 @@ namespace V4
             int isSpecialPawnMove = Move.StatType(move);
             int movingPiece = Piece.Type(IntBoard[dest]);
             int movingColor = Piece.Color(IntBoard[dest]);
-
 
             // Handles king index
             if (movingPiece == Piece.King) {
@@ -309,23 +351,56 @@ namespace V4
 
             // Undoes Special Pawn moves
             if (isSpecialPawnMove == 1) {
-                if ((dest >> 3) % 7 == 0) {
-                    // Undoes promotion
-                    IntBoard[start] = Piece.Pawn | Piece.Color(IntBoard[dest]);
+                if ((dest >> 3) == 0) {
+                    // Undoes black promotion
+                    Hash ^= Zobrist.blackPieceHash[movingPiece, dest];
+                    Hash ^= Zobrist.blackPieceHash[Piece.Pawn, start];
+                    IntBoard[start] = Piece.BlackPawn;
                     IntBoard[dest] = capturedPiece;
+                    if (capturedPiece > 0) {
+                        Hash ^= Zobrist.whitePieceHash[capturedPiece & 0b111, dest];
+                    }
+                }
+                else if ((dest >> 3) == 7) {
+                    // Undoes white promotion
+                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
+                    Hash ^= Zobrist.whitePieceHash[Piece.Pawn, start];
+                    IntBoard[start] = Piece.WhitePawn;
+                    IntBoard[dest] = capturedPiece;
+                    if (capturedPiece > 0) {
+                        Hash ^= Zobrist.blackPieceHash[capturedPiece & 0b111, dest];
+                    }
                 }
                 else {
                     // Undoes En Passant
-                    if ((dest >> 3) == 0b010) 
+                    if ((dest >> 3) == 0b010) {
+                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, start];
+                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, dest];
+                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, dest + 8];
                         IntBoard[dest + 8] = Piece.WhitePawn;
-                    else 
+                    }
+                    else {
+                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, start];
+                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, dest];
+                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, dest - 8];
                         IntBoard[dest - 8] = Piece.BlackPawn;
+                    }
                     IntBoard[start] = IntBoard[dest];
                     IntBoard[dest] = 0;
                 }
             }
             // Undoes Castle
             else if (Piece.IsType(IntBoard[dest], Piece.King) && Math.Abs(start - dest) == 2) {
+                
+                if (Piece.IsColor(IntBoard[dest], Piece.White)) {
+                    Hash ^= Zobrist.whitePieceHash[Piece.King, start];
+                    Hash ^= Zobrist.whitePieceHash[Piece.King, dest];    
+                }
+                else {
+                    Hash ^= Zobrist.blackPieceHash[Piece.King, start];
+                    Hash ^= Zobrist.blackPieceHash[Piece.King, dest];
+                }
+                
                 capturedPiece = 0;
                 IntBoard[start] = IntBoard[dest];
                 IntBoard[dest] = 0;
@@ -334,18 +409,26 @@ namespace V4
                     case 2:
                         IntBoard[0] = Piece.WhiteRook;
                         IntBoard[3] = 0;
+                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 0];
+                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 3];  
                         break;
                     case 6:
                         IntBoard[7] = Piece.WhiteRook;
                         IntBoard[5] = 0;
+                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 7];
+                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 5];
                         break;
                     case 58:
                         IntBoard[56] = Piece.BlackRook;
                         IntBoard[59] = 0;
+                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 56];
+                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 59];
                         break;
                     case 62:
                         IntBoard[63] = Piece.BlackRook;
                         IntBoard[61] = 0;
+                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 63];
+                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 61];
                         break;
                 }
             }
@@ -353,6 +436,13 @@ namespace V4
             else {
                 IntBoard[start] = IntBoard[dest];
                 IntBoard[dest] = capturedPiece;
+                if (movingColor == Piece.White) {
+                    Hash ^= Zobrist.whitePieceHash[movingPiece, start];
+                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
+                    if (capturedPiece > 0) { 
+                        Hash ^= Zobrist.whitePieceHash[capturedPiece & 0b111, dest];
+                    }
+                }
             }
 
             SwapTurn();
@@ -367,6 +457,7 @@ namespace V4
 
         void SwapTurn() {
             WhiteToMove = !WhiteToMove;
+            Hash ^= Zobrist.blackToMoveHash;
             if (WhiteToMove)
             {
                 ColorToMove = Piece.White;

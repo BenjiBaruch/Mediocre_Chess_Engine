@@ -10,12 +10,12 @@ sealed class Version4 : ChessAbstract
     public override string Version { get; }
     public Version4()
     {
-        Name = "Move Sorting";
+        Name = "Basic Transposition Table";
         Version = "4";
     }
     public override Move GetMove(BoardStruct b, double timeLimit)
     {
-        return new Search(b).BestMove(3);
+        return new Search(b).BestMove(2);
     }
 
     static void Main(string[] args) {

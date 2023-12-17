@@ -1,3 +1,4 @@
+using UnityEngine;
 using System.Security.Cryptography;
 
 namespace V4 
@@ -16,8 +17,8 @@ namespace V4
             // help from https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.rngcryptoserviceprovider?view=net-8.0&redirectedfrom=MSDN
             // help from https://www.chessprogramming.org/Zobrist_Hashing
             RNG = new RNGCryptoServiceProvider();
-            whitePieceHash = new long[7,64];
-            blackPieceHash = new long[7,64];
+            whitePieceHash = new long[8,64];
+            blackPieceHash = new long[8,64];
             for (int i = 0; i < 7; i++) {
                 for (int j = 0; j < 64; j++) {
                     whitePieceHash[i,j] = GetRandom();

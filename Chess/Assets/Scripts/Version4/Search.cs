@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
+using Unity.Collections;
 using Unity.VisualScripting;
 using UnityEngine;
 using Utils;
@@ -15,10 +16,14 @@ namespace V4 {
         readonly MoveGen board;
         public bool DeadKing { get; set; }
         public bool Break { get; set; }
+        int iterations;
+        Dictionary<long, Tuple<int, int>> TranspositionTable;
         public Search(BoardStruct board) 
         {
+            Zobrist.Initialize();
             this.board = new(board);
             this.board.SetSearchObject(this);
+            TranspositionTable = new(30000000);
         }
         public int SearchRec(int depth, int alpha, int beta) 
         {
@@ -26,11 +31,23 @@ namespace V4 {
             if (Break) {
                 return alpha;
             }
+
+            if (iterations++ % 1000 == 0) {
+                Debug.Log(iterations);
+            }
+
             if (DeadKing) {
                 // Base case: King captured
                 return -999999;
             }
-            if (depth == 0) {
+
+            if (TranspositionTable.ContainsKey(board.Hash)) {
+                Tuple<int, int> entry = TranspositionTable[board.Hash];
+                if (entry.Item2 >= depth)
+                    return entry.Item1;
+            }
+
+            if (depth < 1) {
                 // Base case: Extended search depth exceeded
                 return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
             }
@@ -53,6 +70,7 @@ namespace V4 {
                 DeadKing = false;
                 board.DoMove(m);
                 int score = -SearchRec(depth-1, -beta, -alpha);
+                TranspositionTable[board.Hash] = new(score, depth-1);
                 board.UndoMove();
 
                 // Help from https://www.chessprogramming.org/Alpha-Beta
@@ -75,6 +93,7 @@ namespace V4 {
             int highestScore = int.MinValue;
             Break = false;
             Move bestMove = new(0);
+            iterations = 0;
             while (moves.Count > 0) {
                 Move m = moves.Dequeue();
                 DeadKing = false;
