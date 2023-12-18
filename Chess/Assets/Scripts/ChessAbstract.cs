@@ -3,8 +3,10 @@ using UnityEngine;
 
 public abstract class ChessAbstract : MonoBehaviour
 {
-    public abstract string Name { get; }
-    public abstract string Version { get; }
+    public abstract string Name { get; set; }
+    public abstract string Version { get; set; }
     public bool Side { get; set; }
-    public abstract Move GetMove(BoardStruct b, double timeLimit);
+    public abstract void Initialize(bool side);
+    public abstract Move GetMoveTimed(BoardStruct b, double timeLimit);
+    public abstract Move GetMoveDrafted(BoardStruct b, int depth);
 }

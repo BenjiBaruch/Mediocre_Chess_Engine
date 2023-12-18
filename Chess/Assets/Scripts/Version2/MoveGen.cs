@@ -132,6 +132,11 @@ namespace V2 {
             int movingPiece = Piece.Type(IntBoard[start]);
             int movingColor = Piece.Color(IntBoard[start]);
 
+            if (movingPiece == Piece.Pawn && (dest >> 3) % 7 == 0 && !move.IsPromotion) {
+                search.Break = true;
+                Debug.Log("Pawn Promote Err: (" + start + ", " + dest + ") " + type);
+            }
+
             // Update king index
             if (movingPiece == Piece.King) {
                 if (movingColor == Piece.White) wkIndex = dest;

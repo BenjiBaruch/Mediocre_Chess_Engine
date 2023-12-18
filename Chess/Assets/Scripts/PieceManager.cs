@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.ExceptionServices;
+using System.Diagnostics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 public class PieceManager : MonoBehaviour
 {
@@ -21,8 +23,11 @@ public class PieceManager : MonoBehaviour
     0: Player v Player
     1: Player v CPU
     2: CPU1 v CPU2
+    3: Time CPUs
     */
     public int Mode;
+    public int SearchDepth;
+    public long TimeLimit;
     // Chess AI classes
     public ChessAbstract CPU1, CPU2;
     SpriteRenderer[] highlights;
@@ -54,8 +59,8 @@ public class PieceManager : MonoBehaviour
         pieces = new(32);
         whiteGraveyard = new(15);
         blackGraveyard = new(15);
-        CPU1.Side = true;
-        CPU2.Side = false;
+        CPU1.Initialize(true);
+        CPU2.Initialize(false);
         highlights = new SpriteRenderer[64];
         highlightedTile = -1;
         doMoveIn = 0;
@@ -117,6 +122,44 @@ public class PieceManager : MonoBehaviour
                 }
                 pieces.Remove(p);
                 break;
+        }
+    }
+
+    long TimeMove(bool side) {
+        Stopwatch watch = Stopwatch.StartNew();
+        Move m;
+        if (side) {
+            m = CPU1.GetMoveDrafted(board.ToStruct(), SearchDepth);
+        } else {
+            m = CPU2.GetMoveDrafted(board.ToStruct(), SearchDepth);
+        }
+        watch.Stop();
+        long time1 = watch.ElapsedMilliseconds;
+        board.DoMove(m);
+        return time1;
+    }
+
+    void CPUMove() {
+        Move m;
+        if (Mode == 3) {
+            long time1 = TimeMove(!AITurn);
+            long time2 = TimeMove(AITurn);
+            Debug.Log("CPU1: " + time1 + ", CPU2: " + time2);
+            HandleAsymmetries(false);
+            return;
+        }
+        else if (Mode == 2) {
+            AITurn = !AITurn;
+            m = AITurn ? CPU1.GetMoveDrafted(board.ToStruct(), SearchDepth) : 
+                         CPU2.GetMoveDrafted(board.ToStruct(), SearchDepth);
+        } 
+        else {
+            m = CPU1.GetMoveDrafted(board.ToStruct(), SearchDepth);
+        }
+        board.DoMove(m);
+        HandleAsymmetries(false);
+        if (Mode == 2) {
+            doMoveIn = 60;
         }
     }
 
@@ -228,18 +271,7 @@ public class PieceManager : MonoBehaviour
         if (doMoveIn > 0) {
             doMoveIn--;
             if (doMoveIn == 0 && Mode > 0) {
-                Move m;
-                if (Mode == 2) {
-                    AITurn = !AITurn;
-                    m = AITurn ? CPU1.GetMove(board.ToStruct(), 1000L) : CPU2.GetMove(board.ToStruct(), 1000L);
-                } else {
-                    m = CPU1.GetMove(board.ToStruct(), 1000L);
-                }
-                board.DoMove(m);
-                HandleAsymmetries(false);
-                if (Mode == 2) {
-                    doMoveIn = 60;
-                }
+                CPUMove();
             }
         }
 

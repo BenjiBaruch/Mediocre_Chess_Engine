@@ -13,17 +13,20 @@ using Debug = UnityEngine.Debug;
 namespace V4 {
     public class Search
     {
-        readonly MoveGen board;
+        MoveGen board;
         public bool DeadKing { get; set; }
         public bool Break { get; set; }
-        int iterations;
-        Dictionary<long, Tuple<int, int>> TranspositionTable;
-        public Search(BoardStruct board) 
+        readonly Dictionary<long, Tuple<int, int>> TranspositionTable;
+        long moveGenTime;
+        long moveCullTime;
+        long TTAccessTime;
+        long doMoveTime;
+        long evalTime;
+        Stopwatch stopwatch;
+        public Search() 
         {
             Zobrist.Initialize();
-            this.board = new(board);
-            this.board.SetSearchObject(this);
-            TranspositionTable = new(30000000);
+            TranspositionTable = new(100000000);
         }
         public int SearchRec(int depth, int alpha, int beta) 
         {
@@ -32,32 +35,45 @@ namespace V4 {
                 return alpha;
             }
 
-            if (iterations++ % 1000 == 0) {
-                Debug.Log(iterations);
-            }
-
             if (DeadKing) {
                 // Base case: King captured
                 return -999999;
             }
 
+            stopwatch.Restart();
             if (TranspositionTable.ContainsKey(board.Hash)) {
                 Tuple<int, int> entry = TranspositionTable[board.Hash];
-                if (entry.Item2 >= depth)
+                if (entry.Item2 >= depth) {
+                    stopwatch.Stop();
+                    TTAccessTime += stopwatch.ElapsedMilliseconds;
                     return entry.Item1;
+                }
             }
+            stopwatch.Stop();
+            TTAccessTime += stopwatch.ElapsedMilliseconds;
 
             if (depth < 1) {
                 // Base case: Extended search depth exceeded
-                return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
+                stopwatch.Restart();
+                int score = Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
+                stopwatch.Stop();
+                evalTime += stopwatch.ElapsedMilliseconds;
+                return score;
             }
             //if (depth < 1) {
             //    return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
             //}
     //
+            stopwatch.Restart();
             PriorityQueue<Move, int> moves = board.PseudoLegalMoves();
+            stopwatch.Stop();
+            moveGenTime += stopwatch.ElapsedMilliseconds;
+            stopwatch.Restart();
             if (depth > 3) 
                 moves = board.CullIllegalMoves(moves);
+            stopwatch.Stop();
+            moveCullTime += stopwatch.ElapsedMilliseconds;
+
 
             while (moves.Count > 0) {
                 Move m = moves.Dequeue();
@@ -68,10 +84,20 @@ namespace V4 {
                 oneMoveChecked = true;
 
                 DeadKing = false;
+
+                stopwatch.Restart();
                 board.DoMove(m);
+                stopwatch.Stop();
+                doMoveTime += stopwatch.ElapsedMilliseconds;
                 int score = -SearchRec(depth-1, -beta, -alpha);
+                stopwatch.Restart();
                 TranspositionTable[board.Hash] = new(score, depth-1);
+                stopwatch.Stop();
+                TTAccessTime += stopwatch.ElapsedMilliseconds;
+                stopwatch.Restart();
                 board.UndoMove();
+                stopwatch.Stop();
+                doMoveTime += stopwatch.ElapsedMilliseconds;
 
                 // Help from https://www.chessprogramming.org/Alpha-Beta
                 if (score >= beta)
@@ -81,19 +107,30 @@ namespace V4 {
             }
 
             if (!oneMoveChecked) {
-                return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
+                stopwatch.Restart();
+                int score = Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
+                stopwatch.Stop();
+                evalTime += stopwatch.ElapsedMilliseconds;
+                return score;
             }
 
             return alpha;
         }
-        public Move BestMove(int depth) 
+        public Move BestMove(BoardStruct boardStruct, int depth) 
         {
+            moveGenTime = 0;
+            moveCullTime = 0;
+            TTAccessTime = 0;
+            doMoveTime = 0;
+            evalTime = 0;
+            stopwatch = new();
+            board = new(boardStruct);
+            board.SetSearchObject(this);
             PriorityQueue<Move, int> moves = board.LegalMoves();
             if (moves.Count == 0) return new(0);
             int highestScore = int.MinValue;
             Break = false;
             Move bestMove = new(0);
-            iterations = 0;
             while (moves.Count > 0) {
                 Move m = moves.Dequeue();
                 DeadKing = false;
@@ -105,6 +142,11 @@ namespace V4 {
                     bestMove = m;
                 }
             }
+            Debug.Log("moveGenTime: " + moveGenTime + 
+                    "\nmoveCullTime: " + moveCullTime + 
+                    "\nTTAccessTime: " + TTAccessTime + 
+                    "\ndoMoveTime: " + doMoveTime +
+                    "\nevalTime: " + evalTime);
             return bestMove;
         }
         public int DeepEval(int depth) 

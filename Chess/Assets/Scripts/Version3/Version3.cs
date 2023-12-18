@@ -6,18 +6,21 @@ using UnityEngine;
 
 sealed class Version3 : ChessAbstract
 {
-    public override string Name { get; }
-    public override string Version { get; }
-    public Version3()
+    public override string Name { get; set; }
+    public override string Version { get; set; }
+    public override void Initialize(bool side)
     {
         Name = "Move Sorting";
         Version = "3";
+        Side = side;
     }
-    public override Move GetMove(BoardStruct b, double timeLimit)
+    public override Move GetMoveDrafted(BoardStruct b, int depth)
     {
-        return new Search(b).BestMove(3);
+        return new Search(b).BestMove(depth);
     }
 
-    static void Main(string[] args) {
+    public override Move GetMoveTimed(BoardStruct b, double timeLimit)
+    {
+        throw new NotImplementedException();
     }
 }

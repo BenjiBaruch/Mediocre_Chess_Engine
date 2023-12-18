@@ -1,23 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using UnityEngine;
 using Search = V4.Search;
+using Debug = UnityEngine.Debug;
 
 sealed class Version4 : ChessAbstract
 {
-    public override string Name { get; }
-    public override string Version { get; }
-    public Version4()
+    public override string Name { get; set; }
+    public override string Version { get; set; }
+    Search search;
+    public override void Initialize(bool side)
     {
+        Stopwatch watch = Stopwatch.StartNew();
+        Side = side;
+        search = new();
         Name = "Basic Transposition Table";
         Version = "4";
+        watch.Stop();
+        Debug.Log("v4 initialization time: " + watch.ElapsedMilliseconds);
     }
-    public override Move GetMove(BoardStruct b, double timeLimit)
+    public override Move GetMoveDrafted(BoardStruct b, int depth)
     {
-        return new Search(b).BestMove(2);
+        return search.BestMove(b, depth);
     }
 
-    static void Main(string[] args) {
+    public override Move GetMoveTimed(BoardStruct b, double timeLimit)
+    {
+        throw new NotImplementedException();
     }
 }

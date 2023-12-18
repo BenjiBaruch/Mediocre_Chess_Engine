@@ -135,6 +135,11 @@ namespace V1 {
             int movingPiece = Piece.Type(IntBoard[start]);
             int movingColor = Piece.Color(IntBoard[start]);
 
+            if (movingPiece == Piece.Pawn && (dest >> 3) % 7 == 0 && !move.IsPromotion) {
+                search.Break = true;
+                Debug.Log("Pawn Promote Err: (" + start + ", " + dest + ") " + type);
+            }
+
             // Update king index
             if (movingPiece == Piece.King) {
                 if (movingColor == Piece.White) wkIndex = dest;
@@ -534,34 +539,33 @@ namespace V1 {
                 }
                 if (Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
                     TryAdd(pos, pos + 7, -1); // Pawn attack up-left
-                } else if ((pos-1)%8 == pawnLeapFile && pos/8 == 4) {
+                } else if (((pos-1)&0b111) == pawnLeapFile && (pos >> 3) == 4) {
                     TryAdd(pos, pos + 7, Move.TypeEnPassant); // Pawn en passant capture left
                 }
                 if (pos + 9 < 64 && Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
                     TryAdd(pos, pos + 9, -1); // Pawn attack up-right
-                } else if ((pos+1)%8 == pawnLeapFile && pos/8 == 4) {
+                } else if (((pos+1)&0b111) == pawnLeapFile && (pos >> 3) == 4) {
                     TryAdd(pos, pos + 9, Move.TypeEnPassant); // Pawn en passant capture right
                 }
             }
             else
             {
-                // Debug.Log("moving black pawn");
                 if (IntBoard[pos - 8] == 0)
                 {
                     TryAdd(pos, pos - 8, -1);
                     if (pos >> 3 == 6 && IntBoard[pos - 16] == 0)
-                        TryAdd(pos, pos - 16, 3);
+                        TryAdd(pos, pos - 16, Move.TypePawnLeap);
                 }
                 if (Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
                     TryAdd(pos, pos - 7, -1);
                 } 
-                else if ((pos+1)%8 == pawnLeapFile && pos/8 == 3) {
+                else if (((pos+1)&0b111) == pawnLeapFile && (pos >> 3) == 3) {
                     TryAdd(pos, pos - 7, Move.TypeEnPassant);
                 }
                 if (pos - 9 > -1 && Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
                     TryAdd(pos, pos - 9, -1);
                 } 
-                else if ((pos-1)%8 == pawnLeapFile && pos/8 == 3) {
+                else if (((pos-1)&0b111) == pawnLeapFile && (pos >> 3) == 3) {
                     TryAdd(pos, pos - 9, Move.TypeEnPassant);
                 }
             }
