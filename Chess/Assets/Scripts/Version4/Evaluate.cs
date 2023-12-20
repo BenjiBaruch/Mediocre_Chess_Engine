@@ -146,7 +146,7 @@ namespace V4 {
             int evaluation = 0;
             //int[] evalTable = new int[64];
             int phase = GetPhase(board);
-            for (int pos = 0; pos < 64; pos++) if (board[pos] > -1) {
+            for (int pos = 0; pos < 64; pos++) if (board[pos] > 0) {
                 int score;
                 int piece = Piece.Type(board[pos]);
                 int color = Piece.Color(board[pos]);

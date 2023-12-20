@@ -31,7 +31,8 @@ class PerformanceTest {
 
     public PerformanceTest(int depth) : this(depth, new()) {}
 
-    private void PerfTestRec(int i) {
+    private void PerfTestRec(int i) 
+    {
         List<Move> moves = b.LegalMoves();
         if (moves.Count == 0) {
             Board.Status s = b.GameStatus();

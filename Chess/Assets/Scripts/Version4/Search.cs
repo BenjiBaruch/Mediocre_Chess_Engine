@@ -40,18 +40,6 @@ namespace V4 {
                 return -999999;
             }
 
-            stopwatch.Restart();
-            if (TranspositionTable.ContainsKey(board.Hash)) {
-                Tuple<int, int> entry = TranspositionTable[board.Hash];
-                if (entry.Item2 >= depth) {
-                    stopwatch.Stop();
-                    TTAccessTime += stopwatch.ElapsedMilliseconds;
-                    return entry.Item1;
-                }
-            }
-            stopwatch.Stop();
-            TTAccessTime += stopwatch.ElapsedMilliseconds;
-
             if (depth < 1) {
                 // Base case: Extended search depth exceeded
                 stopwatch.Restart();
@@ -85,20 +73,45 @@ namespace V4 {
 
                 DeadKing = false;
 
+                // Do move
                 stopwatch.Restart();
                 board.DoMove(m);
                 stopwatch.Stop();
                 doMoveTime += stopwatch.ElapsedMilliseconds;
-                int score = -SearchRec(depth-1, -beta, -alpha);
+
+                bool TTEntryFound = false;
+                int score = 0;
+
+                // Check TT
                 stopwatch.Restart();
-                TranspositionTable[board.Hash] = new(score, depth-1);
+                if (TranspositionTable.ContainsKey(board.Hash)) {
+                    Tuple<int, int> entry = TranspositionTable[board.Hash];
+                    if (entry.Item2 >= depth) {
+                        score = entry.Item1;
+                        TTEntryFound = true;
+                    }
+                }
                 stopwatch.Stop();
                 TTAccessTime += stopwatch.ElapsedMilliseconds;
+
+                // Recur
+                if (!TTEntryFound) {
+                    score = -SearchRec(depth-1, -beta, -alpha);
+
+                    // Write score to TT
+                    stopwatch.Restart();
+                    TranspositionTable[board.Hash] = new(score, depth-1);
+                    stopwatch.Stop();
+                    TTAccessTime += stopwatch.ElapsedMilliseconds;
+                }
+
+                // Undo move
                 stopwatch.Restart();
                 board.UndoMove();
                 stopwatch.Stop();
                 doMoveTime += stopwatch.ElapsedMilliseconds;
 
+                // Update alpha-beta values
                 // Help from https://www.chessprogramming.org/Alpha-Beta
                 if (score >= beta)
                     return beta;
@@ -142,11 +155,11 @@ namespace V4 {
                     bestMove = m;
                 }
             }
-            Debug.Log("moveGenTime: " + moveGenTime + 
-                    "\nmoveCullTime: " + moveCullTime + 
-                    "\nTTAccessTime: " + TTAccessTime + 
-                    "\ndoMoveTime: " + doMoveTime +
-                    "\nevalTime: " + evalTime);
+            // Debug.Log("moveGenTime: " + moveGenTime + 
+            //         "\nmoveCullTime: " + moveCullTime + 
+            //         "\nTTAccessTime: " + TTAccessTime + 
+            //         "\ndoMoveTime: " + doMoveTime +
+            //         "\nevalTime: " + evalTime);
             return bestMove;
         }
         public int DeepEval(int depth) 
