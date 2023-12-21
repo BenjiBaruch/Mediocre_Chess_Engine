@@ -905,48 +905,51 @@ sealed class Board : IEquatable<Board>
     }
 
     void PawnMoves(int pos)
-    {
-        if (WhiteToMove)
         {
-            if (IntBoard[pos + 8] == 0) { 
-                TryAdd(pos, pos + 8, -1); // Push up one
-                if (pos >> 3 == 1 && IntBoard[pos + 16] == 0)
-                    TryAdd(pos, pos + 16, Move.TypePawnLeap); // Push up two
-            }
-            if (Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
-                TryAdd(pos, pos + 7, -1); // Pawn attack up-left
-            } else if ((pos-1)%8 == pawnLeapFile && pos/8 == 4) {
-                TryAdd(pos, pos + 7, Move.TypeEnPassant); // Pawn en passant capture left
-            }
-            if (pos + 9 < 64 && Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
-                TryAdd(pos, pos + 9, -1); // Pawn attack up-right
-            } else if ((pos+1)%8 == pawnLeapFile && pos/8 == 4) {
-                TryAdd(pos, pos + 9, Move.TypeEnPassant); // Pawn en passant capture right
-            }
-        }
-        else
-        {
-            // Debug.Log("moving black pawn");
-            if (IntBoard[pos - 8] == 0)
+            int posFile = pos & 0b111;
+            int posRank = pos >> 3;
+            if (WhiteToMove)
             {
-                TryAdd(pos, pos - 8, -1);
-                if (pos >> 3 == 6 && IntBoard[pos - 16] == 0)
-                    TryAdd(pos, pos - 16, 3);
+                if (IntBoard[pos + 8] == 0) { 
+                    TryAdd(pos, pos + 8, -1); // Push up one
+                    if (posRank == 1 && IntBoard[pos + 16] == 0)
+                        TryAdd(pos, pos + 16, Move.TypePawnLeap); // Push up two
+                }
+                if (posFile > 0 && Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
+                    TryAdd(pos, pos + 7, -1); // Pawn attack up-left
+                } 
+                else if (posFile - 1 == pawnLeapFile && posRank == 4) {
+                    TryAdd(pos, pos + 7, Move.TypeEnPassant); // Pawn en passant capture left
+                }
+                if (posFile < 7 && Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
+                    TryAdd(pos, pos + 9, -1); // Pawn attack up-right
+                } 
+                else if (pawnLeapFile < 8 && posFile + 1 == pawnLeapFile && posRank == 4) {
+                    TryAdd(pos, pos + 9, Move.TypeEnPassant); // Pawn en passant capture right
+                }
             }
-            if (Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
-                TryAdd(pos, pos - 7, -1);
-            } 
-            else if ((pos+1)%8 == pawnLeapFile && pos/8 == 3) {
-                TryAdd(pos, pos - 7, Move.TypeEnPassant);
-            }
-            if (pos - 9 > -1 && Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
-                TryAdd(pos, pos - 9, -1);
-            } 
-            else if ((pos-1)%8 == pawnLeapFile && pos/8 == 3) {
-                TryAdd(pos, pos - 9, Move.TypeEnPassant);
+            else
+            {
+                if (IntBoard[pos - 8] == 0)
+                {
+                    TryAdd(pos, pos - 8, -1);
+                    if (posRank == 6 && IntBoard[pos - 16] == 0)
+                        TryAdd(pos, pos - 16, 3);
+                }
+                if (posFile < 7 && Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
+                    TryAdd(pos, pos - 7, -1);
+                } 
+                else if (pawnLeapFile < 8 && posFile + 1 == pawnLeapFile && posRank == 3) {
+                    TryAdd(pos, pos - 7, Move.TypeEnPassant);
+                }
+                if (posFile > 0 && Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
+                    TryAdd(pos, pos - 9, -1);
+                } 
+                else if (posFile - 1 == pawnLeapFile && posRank == 3) {
+                    TryAdd(pos, pos - 9, Move.TypeEnPassant);
+                }
             }
         }
-    }
 
     void KingMoves(int pos)
     {

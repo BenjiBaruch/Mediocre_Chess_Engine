@@ -31,22 +31,16 @@ namespace V1 {
                 return -999999;
             }
             if (depth == 0) {
-                // Base case: Extended search depth exceeded
+                // Base case: board searched to desired depth
                 return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
             }
-            //if (depth < 1) {
-            //    return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
-            //}
-    //
+    
             List<Move> moves = board.PseudoLegalMoves();
             if (depth > 3) 
                 moves = board.CullIllegalMoves(moves);
 
             foreach (Move m in moves) {
-                if (depth < 1 && !m.IsNormalCapture) {
-                    // Skip quiet moves (non-captures) if search depth is exceeded
-                    continue;
-                }
+                // Quiescent optimization will eventually go here
                 oneMoveChecked = true;
 
                 DeadKing = false;

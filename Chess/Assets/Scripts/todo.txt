@@ -1,6 +1,5 @@
 To-do
 
-* Bug-fix move generation with Perfts
 * Optimize cullillegalmoves (is currently brute-force)
 * Improve quiessence with check extensions and that one other thing in that article
 * Iterative deepening

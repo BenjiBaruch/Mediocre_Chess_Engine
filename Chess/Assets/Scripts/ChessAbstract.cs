@@ -9,4 +9,5 @@ public abstract class ChessAbstract : MonoBehaviour
     public abstract void Initialize(bool side);
     public abstract Move GetMoveTimed(BoardStruct b, double timeLimit);
     public abstract Move GetMoveDrafted(BoardStruct b, int depth);
+    public abstract double TimeFunc(string fName);
 }

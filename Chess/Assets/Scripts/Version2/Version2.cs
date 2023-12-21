@@ -23,4 +23,8 @@ sealed class Version2 : ChessAbstract
     {
         throw new NotImplementedException();
     }
+    public override double TimeFunc(string fName)
+    {
+        throw new NotImplementedException();
+    }
 }

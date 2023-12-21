@@ -306,6 +306,16 @@ public class PieceManager : MonoBehaviour
             doMoveIn = 60;
             HandleAsymmetries(false);
         }
+        else if (Input.GetKeyDown(KeyCode.R)) {
+            double evalTime = CPU1.TimeFunc("eval");
+            double ttWriteTime = CPU1.TimeFunc("write");
+            double pseudoGenTime = CPU1.TimeFunc("gen pseudo");
+            double legalGenTime = CPU1.TimeFunc("gen legal");
+            Debug.Log("Eval time avg: " + evalTime + " ms\n" +
+                      "Transposition Write time avg: " + ttWriteTime + " ms\n" +
+                      "Pseudolegal move gen time avg: " + pseudoGenTime + " ms\n" +
+                      "Legal move gen time avg: " + legalGenTime + " ms\n");
+        }
 
         // Update all pieces
         foreach (PieceObject p in pieces) 

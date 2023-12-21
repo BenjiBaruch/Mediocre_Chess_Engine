@@ -15,7 +15,6 @@ namespace V3 {
         readonly MoveGen board;
         public bool DeadKing { get; set; }
         public bool Break { get; set; }
-        int iterations;
         public Search(BoardStruct board) 
         {
             this.board = new(board);
@@ -23,7 +22,7 @@ namespace V3 {
         }
         public int SearchRec(int depth, int alpha, int beta) 
         {
-            iterations++;
+            // iterations++;
             bool oneMoveChecked = false;
             if (Break) {
                 return alpha;
@@ -72,7 +71,6 @@ namespace V3 {
         }
         public Move BestMove(int depth) 
         {
-            iterations = 0;
             PriorityQueue<Move, int> moves = board.LegalMoves();
             if (moves.Count == 0) return new(0);
             int highestScore = int.MinValue;
@@ -89,7 +87,7 @@ namespace V3 {
                     bestMove = m;
                 }
             }
-            Debug.Log("v3 i: " + iterations);
+            // Debug.Log("v3 i: " + iterations);
             return bestMove;
         }
         public int DeepEval(int depth) 
