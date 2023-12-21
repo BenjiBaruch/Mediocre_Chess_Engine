@@ -174,11 +174,15 @@ namespace V5
             return bestMove;
         }
 
-        public List<Tuple<MoveGen, Move, long>> GenTestCases(List<Tuple<MoveGen, Move, long>> cases, int depth) {
+        public List<Tuple<MoveGen, Move, long>> GenTestCases(List<Tuple<MoveGen, Move, long>> cases, int depth, bool write) {
             PriorityQueue<Move, int> moves = BoardObj.LegalMoves();
+            if (write) {
+                Transposition.Write(BoardObj.Hash, 363245, 2);
+            }
             if (moves.Count == 0)
                 return cases;
-            cases.Add(new(BoardObj.Clone(), moves.Dequeue(), BoardObj.Hash));
+            if (depth < 4)
+                cases.Add(new(BoardObj.Clone(), moves.Dequeue(), BoardObj.Hash));
             if (depth == 0)
                 return cases;
             while (moves.Count > 0) {
@@ -186,7 +190,7 @@ namespace V5
                 if (m.Value == 0) continue;
                 DeadKing = false;
                 BoardObj.DoMove(m);
-                cases = GenTestCases(cases, depth-1);
+                cases = GenTestCases(cases, depth-1, write);
                 BoardObj.UndoMove();
             }
             return cases;

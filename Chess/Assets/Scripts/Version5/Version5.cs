@@ -37,7 +37,7 @@ sealed class Version5 : ChessAbstract
         List<Tuple<MoveGen, Move, long>> cases = new(100000);
         MoveGen board = new(new Board().ToStruct());
         search.BoardObj = board;
-        cases = search.GenTestCases(cases, 4);
+        cases = search.GenTestCases(cases, 4, fName.Equals("read"));
         Zobrist transposition = search.Transposition;
         Stopwatch sw = Stopwatch.StartNew();
         int i = 0;
@@ -52,15 +52,24 @@ sealed class Version5 : ChessAbstract
                 case "write":
                     transposition.Write(caseI.Item3, 12351, 2);
                     break;
+                case "read":
+                    transposition.Read(caseI.Item3, 0);
+                    break;
                 case "gen pseudo":
                     caseI.Item1.PseudoLegalMoves();
                     break;
                 case "gen legal":
                     caseI.Item1.LegalMoves();
                     break;
+                case "do":
+                    caseI.Item1.DoMove(caseI.Item2);
+                    break;
+                case "undo":
+                    caseI.Item1.UndoMove();
+                    break;
             }
         }
         sw.Stop();
-        return sw.ElapsedMilliseconds / (double)stop;
+        return sw.ElapsedMilliseconds / (double)stop * 1_000_000D;
     }
 }

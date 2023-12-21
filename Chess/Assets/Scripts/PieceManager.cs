@@ -307,14 +307,12 @@ public class PieceManager : MonoBehaviour
             HandleAsymmetries(false);
         }
         else if (Input.GetKeyDown(KeyCode.R)) {
-            double evalTime = CPU1.TimeFunc("eval");
-            double ttWriteTime = CPU1.TimeFunc("write");
-            double pseudoGenTime = CPU1.TimeFunc("gen pseudo");
-            double legalGenTime = CPU1.TimeFunc("gen legal");
-            Debug.Log("Eval time avg: " + evalTime + " ms\n" +
-                      "Transposition Write time avg: " + ttWriteTime + " ms\n" +
-                      "Pseudolegal move gen time avg: " + pseudoGenTime + " ms\n" +
-                      "Legal move gen time avg: " + legalGenTime + " ms\n");
+            string[] funcs = {"eval", "do", "undo", "gen legal", "gen pseudo", "read", "write"};
+            string results = "";
+            foreach (string f in funcs) {
+                results += f + " avg: " + CPU1.TimeFunc(f) + " ns\n";
+            }
+            Debug.Log(results);
         }
 
         // Update all pieces
