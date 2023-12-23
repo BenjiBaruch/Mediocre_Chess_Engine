@@ -307,7 +307,7 @@ public class PieceManager : MonoBehaviour
             HandleAsymmetries(false);
         }
         else if (Input.GetKeyDown(KeyCode.R)) {
-            string[] funcs = {"eval", "do", "undo", "gen legal", "gen pseudo", "read", "write"};
+            string[] funcs = {"nil", "eval", "do", "gen legal", "gen pseudo", "read", "write", "read2", "write2"};
             string results = "";
             foreach (string f in funcs) {
                 results += f + " avg: " + CPU1.TimeFunc(f) + " ns\n";

@@ -11,6 +11,7 @@ namespace V5
         public static long[] castleRightsHash;
         public static long[] pawnLeapFilesHash;
         public readonly int[,] Transposition;
+        public readonly int[][] Transposition2;
         public int keySize;
         readonly long keyMask;
         readonly int tableSize;
@@ -24,6 +25,10 @@ namespace V5
             }
             tableSize = 1 << keySize;
             Transposition = new int[tableSize, 3];
+            Transposition2 = new int[tableSize][];
+            for (int i = 0; i < tableSize; i++) {
+                Transposition2[i] = new int[3];
+            }
         }
 
         int SearchEntry(int key, int check) {
@@ -80,6 +85,29 @@ namespace V5
             }
         }
 
+        public int? Read2(long hash, int minDepth) {
+            int key = (int)(hash & keyMask);
+            int index = key;
+            int check = (int)(hash >> 32);
+            int[] entry;
+            while (true) {
+                entry = Transposition2[index];
+                if (entry[0] == 0)
+                    return null;
+                if (entry[0] == check)
+                    break;
+                if (key - index == 1)
+                    return null;
+                if (index < tableSize-1)
+                    index++;
+                else
+                    index = 0;
+            } 
+            if (entry[2] < minDepth)
+                return null;
+            return entry[1];
+        }
+
         public int? Read(long hash, int minDepth) {
             int key = (int)(hash & keyMask);
             int check = (int)(hash >> 32);
@@ -87,6 +115,28 @@ namespace V5
             if (index == -1 || Transposition[index, 2] < minDepth)
                 return null;
             return Transposition[index, 1];
+        }
+
+        public bool Write2(long hash, int score, int depth) {
+            int key = (int)(hash & keyMask);
+            int check = (int)(hash >> 32);
+            int index = key;
+            int[] entry;
+            while (true) {
+                entry = Transposition2[index];
+                if (entry[0] == 0 || entry[0] == check)
+                    break;
+                if (key - index == 1)
+                    return false;
+                if (index < tableSize-1)
+                    index++;
+                else
+                    index = 0;
+            }
+            entry[0] = check;
+            entry[1] = score;
+            entry[2] = depth;
+            return true;
         }
 
         public bool Write(long hash, int score, int depth) {
