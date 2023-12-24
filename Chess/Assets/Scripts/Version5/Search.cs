@@ -174,6 +174,33 @@ namespace V5
             return bestMove;
         }
 
+        public Dictionary<string, int> GetPartCounts(BoardStruct boardStruct, int depth) {
+            moveGenTime = moveCullTime = TTAccessTime = doMoveTime = evalTime = 0L;
+            moveGenCount = moveCullCount = TTReadCount = TTWriteCount = doMoveCount = evalCount = 0;
+            stopwatch = new();
+            BoardObj = new(boardStruct);
+            BoardObj.SetSearchObject(this);
+            PriorityQueue<Move, int> moves = BoardObj.LegalMoves();
+            if (moves.Count == 0) return new(0);
+            Break = false;
+            while (moves.Count > 0) {
+                Move m = moves.Dequeue();
+                DeadKing = false;
+                BoardObj.DoMove(m);
+                SearchRec(depth-1, int.MinValue/2, int.MaxValue/2);
+                BoardObj.UndoMove();
+            }
+
+            Dictionary<string, int> counts = new(6);
+            counts.Add("eval", evalCount);
+            counts.Add("read", TTReadCount);
+            counts.Add("write", TTWriteCount);
+            counts.Add("do", doMoveCount);
+            counts.Add("gen pseudo", moveGenCount - moveCullCount);
+            counts.Add("gen legal", moveCullCount);
+            return counts;
+        }
+
         public List<Tuple<MoveGen, Move, long>> GenTestCases(List<Tuple<MoveGen, Move, long>> cases, int depth, bool write) {
             PriorityQueue<Move, int> moves = BoardObj.LegalMoves();
             if (write) {

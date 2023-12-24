@@ -29,4 +29,8 @@ sealed class Version1 : ChessAbstract
     {
         throw new NotImplementedException();
     }
+    public override Dictionary<string, int> GetPartCounts()
+    {
+        throw new NotImplementedException();
+    }
 }

@@ -75,4 +75,14 @@ sealed class Version5 : ChessAbstract
         sw.Stop();
         return sw.ElapsedMilliseconds / (double)stop * 1_000_000D;
     }
+
+    public override Dictionary<string, int> GetPartCounts()
+    {
+        Board b = new();
+        b.DoMove(b.LegalMoves()[0]);
+        b.DoMove(b.LegalMoves()[0]);
+        b.DoMove(b.LegalMoves()[0]);
+        b.DoMove(b.LegalMoves()[0]);
+        return search.GetPartCounts(b.ToStruct(), 5);
+    }
 }

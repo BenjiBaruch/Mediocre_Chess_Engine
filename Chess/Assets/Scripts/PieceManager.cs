@@ -94,6 +94,66 @@ public class PieceManager : MonoBehaviour
         }
     }
 
+    void HandleKeyInputs() {
+        /*
+        Key Commands:
+        Space: Handle asymmetries between game board and internal board
+        Backspace: Manually undo move
+        M: Do AI move
+        P: Print internal board
+        T: Print performance test results
+        R: Print method durations
+        Q: Print total method durations relative to PERFT
+        */
+        if (Input.GetKeyDown(KeyCode.Space)) {
+            HandleAsymmetries(true);
+        }
+        // Use backspace to manually undo moves
+        else if (Input.GetKeyDown(KeyCode.Backspace)) {
+            board.UndoMove();
+            HandleAsymmetries(false);
+        }
+        else if (Input.GetKeyDown(KeyCode.P)) {
+            Debug.Log(board);
+        }
+        else if (Input.GetKeyDown(KeyCode.T)) {
+            Debug.Log("Starting Perft Test");
+            PerformanceTest perft = new(4, board);
+            Dictionary<string, int[]> results = perft.PerfTest(); 
+            string resultStr = "Results:";
+            foreach (string key in results.Keys) {
+                resultStr += "\n" + key + ": [";
+                int[] bits = results[key];
+                for (int i = 0; i < bits.Count()-1; i++)
+                    resultStr += bits[i] + ", ";
+                resultStr += bits[^1] + "]";
+            }
+            Debug.Log(resultStr);
+        }
+        else if (Input.GetKeyDown(KeyCode.M)) {
+            // board.DoMove(search.BestMove(4));
+            doMoveIn = 60;
+            HandleAsymmetries(false);
+        }
+        else if (Input.GetKeyDown(KeyCode.R)) {
+            string[] funcs = {"nil", "eval", "do", "gen legal", "gen pseudo", "read", "write", "read2", "write2"};
+            string results = "";
+            foreach (string f in funcs) {
+                results += f + " avg: " + CPU1.TimeFunc(f) + " ns\n";
+            }
+            Debug.Log(results);
+        }
+        else if (Input.GetKeyDown(KeyCode.Q)) {
+            Dictionary<string, int> counts = CPU1.GetPartCounts();
+            string results = "";
+            foreach (string f in counts.Keys) {
+                double time = CPU1.TimeFunc(f) * counts[f] / 1_000_000D;
+                results += f + " total: " + time + " ms\n";
+            }
+            Debug.Log(results);
+        }
+    }
+
     int SpriteIndex(int pieceCode) => pieceCode switch {
         Piece.White | Piece.King => 0,
         Piece.Black | Piece.King => 1,
@@ -275,45 +335,7 @@ public class PieceManager : MonoBehaviour
             }
         }
 
-        // Use spacebar to check for board <-> game asymmetries
-        if (Input.GetKeyDown(KeyCode.Space)) {
-            HandleAsymmetries(true);
-        }
-        // Use backspace to manually undo moves
-        else if (Input.GetKeyDown(KeyCode.Backspace)) {
-            board.UndoMove();
-            HandleAsymmetries(false);
-        }
-        else if (Input.GetKeyDown(KeyCode.P)) {
-            Debug.Log(board);
-        }
-        else if (Input.GetKeyDown(KeyCode.T)) {
-            Debug.Log("Starting Perft Test");
-            PerformanceTest perft = new(4, board);
-            Dictionary<string, int[]> results = perft.PerfTest(); 
-            string resultStr = "Results:";
-            foreach (string key in results.Keys) {
-                resultStr += "\n" + key + ": [";
-                int[] bits = results[key];
-                for (int i = 0; i < bits.Count()-1; i++)
-                    resultStr += bits[i] + ", ";
-                resultStr += bits[^1] + "]";
-            }
-            Debug.Log(resultStr);
-        }
-        else if (Input.GetKeyDown(KeyCode.M)) {
-            // board.DoMove(search.BestMove(4));
-            doMoveIn = 60;
-            HandleAsymmetries(false);
-        }
-        else if (Input.GetKeyDown(KeyCode.R)) {
-            string[] funcs = {"nil", "eval", "do", "gen legal", "gen pseudo", "read", "write", "read2", "write2"};
-            string results = "";
-            foreach (string f in funcs) {
-                results += f + " avg: " + CPU1.TimeFunc(f) + " ns\n";
-            }
-            Debug.Log(results);
-        }
+        HandleKeyInputs();
 
         // Update all pieces
         foreach (PieceObject p in pieces) 
