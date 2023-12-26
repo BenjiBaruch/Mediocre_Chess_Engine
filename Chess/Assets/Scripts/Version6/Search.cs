@@ -202,7 +202,6 @@ namespace V6
             this.timeLimit = timeLimit;
             BoardObj = new(boardStruct);
             BoardObj.SetSearchObject(this);
-            PriorityQueue<Move, int> moves = BoardObj.LegalMoves();
             Transposition.ClearTable();
             Move best = new(0);
             int depth = 2;
@@ -225,7 +224,7 @@ namespace V6
             // Negative number means black is winning
             DeadKing = false;
             Break = false;
-            return SearchRec(depth, int.MinValue/2, int.MaxValue/2, 0, 0);
+            return SearchRec(depth, int.MinValue/2, int.MaxValue/2, 0);
         }
     }
 }
