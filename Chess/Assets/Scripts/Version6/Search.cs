@@ -198,7 +198,6 @@ namespace V6
         }
         public Move BestMove(BoardStruct boardStruct, long timeLimit) 
         {
-            var sw = Stopwatch.StartNew();
             this.timeLimit = timeLimit;
             BoardObj = new(boardStruct);
             BoardObj.SetSearchObject(this);
@@ -216,6 +215,19 @@ namespace V6
             }
             Debug.Log("v6 Depth: " + depth + ", I: " + iterationsFinal);
             return best;
+        }
+
+        public Move BestMoveToDepth(BoardStruct boardStruct, int depth) {
+            BoardObj = new(boardStruct);
+            BoardObj.SetSearchObject(this);
+            Transposition.ClearTable();
+            principal = new(0);
+            for (int i = 2; i < depth; i++) {
+                SearchTo(i);
+            }
+            SearchTo(depth);
+            Debug.Log("v6 I: " + iterations);
+            return principal;
         }
 
         public int DeepEval(int depth) 

@@ -21,12 +21,12 @@ sealed class Version6 : ChessAbstract
     }
     public override Move GetMoveDrafted(BoardStruct b, int depth)
     {
-        return search.BestMove(b, depth);
+        return search.BestMoveToDepth(b, depth);
     }
 
-    public override Move GetMoveTimed(BoardStruct b, double timeLimit)
+    public override Move GetMoveTimed(BoardStruct b, long timeLimit)
     {
-        throw new NotImplementedException();
+        return search.BestMove(b, timeLimit);
     }
 
     public override double TimeFunc(string fName)

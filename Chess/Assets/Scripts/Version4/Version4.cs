@@ -26,7 +26,7 @@ sealed class Version4 : ChessAbstract
         return search.BestMove(b, depth);
     }
 
-    public override Move GetMoveTimed(BoardStruct b, double timeLimit)
+    public override Move GetMoveTimed(BoardStruct b, long timeLimit)
     {
         throw new NotImplementedException();
     }
