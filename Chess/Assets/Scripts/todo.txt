@@ -1,10 +1,13 @@
 To-do
 
 * Optimize cullillegalmoves (is currently brute-force)
-* Improve quiessence with check extensions and that one other thing in that article
+* 0x88 board
+* Static Exchange Eval
 * Iterative deepening
+* PV move order
+* PV extension
+* Killer/History heuristic
 * Implement kill maps and wrap them into eval
 * Implement check detection and check search extensions
 * Optimize move generation
-* Implement Zobrist hashing
 * Improve pawn evaluation and implement pawn hashing

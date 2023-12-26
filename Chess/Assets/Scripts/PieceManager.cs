@@ -185,7 +185,7 @@ public class PieceManager : MonoBehaviour
         }
     }
 
-    long TimeMove(bool side) {
+    long TimeMove(bool side, bool doMove) {
         Stopwatch watch = Stopwatch.StartNew();
         Move m;
         if (side) {
@@ -195,15 +195,17 @@ public class PieceManager : MonoBehaviour
         }
         watch.Stop();
         long time1 = watch.ElapsedMilliseconds;
-        board.DoMove(m);
+        if (doMove)
+            board.DoMove(m);
         return time1;
     }
 
     void CPUMove() {
         Move m;
         if (Mode == 3) {
-            long time1 = TimeMove(!AITurn);
-            long time2 = TimeMove(AITurn);
+            AITurn = !AITurn;
+            long time1 = TimeMove(false, AITurn);
+            long time2 = TimeMove(true, !AITurn);
             Debug.Log("CPU1: " + time1 + ", CPU2: " + time2);
             HandleAsymmetries(false);
             return;

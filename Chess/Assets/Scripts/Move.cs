@@ -124,6 +124,7 @@ public readonly struct Move
     public bool IsCastle => Type == TypeCastle;
     public bool IsCapture => Type == 2 || (Type >= 10 && Type <= 15);
     public bool IsNormalCapture => Type >= 10 && Type <= 15;
+    public bool IsQuiet => Type < 2 || Type == 3;
 
     public new string ToString { get { 
         return "" + Board.LetterCodes[StartCol] + (StartRow+1) + " --> " + Board.LetterCodes[DestCol] + (DestRow+1); 

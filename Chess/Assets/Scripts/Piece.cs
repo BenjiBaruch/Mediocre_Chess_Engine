@@ -39,11 +39,11 @@ static class Piece
     public const int BlackRook = Black | Rook;
 
     // Masks determine which bits of move determine which information about pieces
-    const int colorMask = 0b11000;
-    const int typeMask = 0b00111;
+    public const int ColorMask = 0b11000;
+    public const int TypeMask = 0b00111;
 
     public static char Code(int piece) {
-        return (piece & typeMask) switch {
+        return (piece & TypeMask) switch {
             Empty => '_',
             King => 'K',
             Queen => 'Q',
@@ -56,11 +56,11 @@ static class Piece
     }
 
     public static string ToString(int piece) {
-        return (piece & colorMask) switch {
+        return (piece & ColorMask) switch {
             White => "White ",
             Black => "Black ",
             _ => ""
-        } + (piece & typeMask) switch {
+        } + (piece & TypeMask) switch {
             Empty => "nil",
             King => "King",
             Queen => "Queen",
@@ -85,13 +85,13 @@ static class Piece
     }
 
     // Basic properties
-    public static bool IsColor(int piece, int color) => (piece & colorMask) == color;
+    public static bool IsColor(int piece, int color) => (piece & ColorMask) == color;
 
-    public static bool IsType(int piece, int type) => (piece & typeMask) == type;
+    public static bool IsType(int piece, int type) => (piece & TypeMask) == type;
 
-    public static int Color(int piece) => piece & colorMask;
+    public static int Color(int piece) => piece & ColorMask;
 
-    public static int Type(int piece) => piece & typeMask;
+    public static int Type(int piece) => piece & TypeMask;
 
     // Movement properties
     public static bool CanSlide(int piece) => (piece & 0b100) > 0;

@@ -17,10 +17,10 @@ sealed class Version5 : ChessAbstract
         Stopwatch watch = Stopwatch.StartNew();
         Side = side;
         search = new();
-        Name = "Basic Transposition Table";
-        Version = "4";
+        Name = "Custom Transposition Table";
+        Version = "5";
         watch.Stop();
-        Debug.Log("v4 initialization time: " + watch.ElapsedMilliseconds);
+        Debug.Log("v5 initialization time: " + watch.ElapsedMilliseconds);
     }
     public override Move GetMoveDrafted(BoardStruct b, int depth)
     {
