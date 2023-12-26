@@ -29,22 +29,30 @@ namespace V6
             Transposition = new(27);
             sw = new();
         }
-        public int SearchRec(int depth, int alpha, int beta, int extension, int consecutivePV) 
+        public int SearchRec(int depth, int alpha, int beta, int consecutivePV) 
         {
             bool oneMoveChecked = false;
 
             if (sw.ElapsedMilliseconds > timeLimit) {
+                // Base case: time limit reached
                 timeLimitReached = true;
                 return alpha;
             }
 
             if (Break) {
+                // Base case: error in other script
                 return alpha;
             }
 
             if (DeadKing) {
                 // Base case: King captured
                 return -999999;
+            }
+
+            if (consecutivePV > 1) {
+                // If two hash moves were searched in a row, extend search depth by 1
+                consecutivePV = 0;
+                depth++;
             }
 
             if (depth < 1) {
@@ -55,27 +63,54 @@ namespace V6
 
             Move best = new(0);
 
+            // Read transposition table entry
             Tuple<Zobrist.Type, int> read = Transposition.Read(BoardObj.Hash, depth);
             switch (read.Item1) {
                 case Zobrist.Type.PrevAlpha:
+                    // If position was already searched at this draft,
+                    // return previously discovered value
                     return read.Item2;
                 case Zobrist.Type.HashMove:
+                    // If position was already searched, but with a worse draft,
+                    // First search what it considered to be the best move (hash move)
                     best = new(read.Item2);
                     break;
             }
 
+            // Search hash move first
+            if (best.Value != 0 && !(depth < 1 && best.IsQuiet)) {
+                // Basically the same as the search block in the while loop (below)
+                // More extensive notes over there                
+                BoardObj.DoMove(best);
+                int score = -SearchRec(depth-1, -beta, -alpha, consecutivePV + 1);
+                BoardObj.UndoMove();
+                if (score >= beta)
+                    return beta;
+                if (score > alpha)
+                    alpha = score;
+            }
+
             iterations++;
-    
+
+            // Generate moves if hash move wasn't precise enough
             PriorityQueue<Move, int> moves = BoardObj.PseudoLegalMoves();
             if (depth > 3)  {
+                // If we're far from leaf nodes, use more precise move generation
                 moves = BoardObj.CullIllegalMoves(moves);
             }
 
+            int maxScore = int.MinValue;
 
+            // Search all moves
             while (moves.Count > 0) {
                 Move m = moves.Dequeue();
+
+                if (m.Value == best.Value)
+                    // Don't re-search hash move
+                    continue;
+
                 if (depth < 1 && m.IsQuiet) {
-                    // Skip quiet moves (non-captures) if search depth is exceeded
+                    // Skip quiet moves (non-captures) if initial search depth is exceeded
                     continue;
                 }
                 oneMoveChecked = true;
@@ -85,7 +120,7 @@ namespace V6
                 BoardObj.DoMove(m);
 
                 // Recur
-                int score = -SearchRec(depth-1, -beta, -alpha, extension, 0);
+                int score = -SearchRec(depth-1, -beta, -alpha, 0);
 
                 // Undo move
                 BoardObj.UndoMove();
@@ -93,20 +128,33 @@ namespace V6
                 // Update alpha-beta values
                 // Help from https://www.chessprogramming.org/Alpha-Beta
                 if (score >= beta) {
+                    // If score exceeds beta (upper bound), it "fails high" and a reasonable opponent would never play it
+                    // Therefore, we should record it to TT and return that upper bound
                     Transposition.Write(BoardObj.Hash, beta, depth, m.Value);
                     return beta;
                 }
                 if (score > alpha) {
+                    // If score is greater than alpha (lower bound), 
+                    // set alpha to score to narrow the window
                     alpha = score;
+                }
+                if (score > maxScore) {
+                    // If score is best found so far, update best move
+                    // If this position is searched again in the future,
+                    // The best move will have been hashed to the TT and searched first
+                    maxScore = score;
                     best = m;
                 }
             }
 
             if (!oneMoveChecked) {
+                // If no moves were searched (i.e. all moves were quiet)
+                // Just eval board and return it
                 int score = Evaluate.EvalBoard(BoardObj.IntBoard, BoardObj.WhiteToMove, false);
                 return score;
             }
 
+            // Write data to Transposition table
             Transposition.Write(BoardObj.Hash, alpha, depth, best.Value);
 
             return alpha;
@@ -123,7 +171,7 @@ namespace V6
                 alpha = -SearchRec(depth-1, 
                                          (int)(int.MinValue*0.5F), 
                                          (int)(int.MaxValue*0.5F), 
-                                         0, 1);
+                                         1);
                 BoardObj.UndoMove();
             }
             while (moves.Count > 0) {
@@ -138,7 +186,7 @@ namespace V6
                 int score = -SearchRec(depth-1, 
                                        (int)(int.MinValue*0.5F), 
                                        -alpha, 
-                                       0, 0);
+                                       0);
                 BoardObj.UndoMove();
 
                 if (score > alpha) {
