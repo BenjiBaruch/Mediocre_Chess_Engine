@@ -11,7 +11,7 @@ namespace V6
         public static long blackToMoveHash;
         public static long[] castleRightsHash;
         public static long[] pawnLeapFilesHash;
-        public int[,] Transposition;
+        public readonly int[,] Transposition;
         public int keySize;
         readonly long keyMask;
         readonly int tableSize;
@@ -34,7 +34,15 @@ namespace V6
             Transposition = new int[tableSize, 4];
         }
 
-        public void ClearTable() => Transposition = new int[tableSize, 4];
+        public void ClearTable() 
+        {
+            for (int i = 0; i < tableSize; i++) {
+                Transposition[i, 0] = 0;
+                Transposition[i, 1] = 0;
+                Transposition[i, 2] = 0;
+                Transposition[i, 3] = 0;
+            } 
+        }
 
         int SearchEntry(int key, int check) 
         {

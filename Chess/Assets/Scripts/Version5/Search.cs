@@ -22,6 +22,7 @@ namespace V5
         long TTAccessTime;
         long doMoveTime;
         long evalTime;
+        int iterations;
         int moveGenCount, moveCullCount, TTReadCount, TTWriteCount, doMoveCount, evalCount;
         Stopwatch stopwatch;
         public Zobrist Transposition { get; }
@@ -55,6 +56,7 @@ namespace V5
             //    return Evaluate.EvalBoard(board.IntBoard, board.WhiteToMove, false);
             //}
     //
+            iterations++;
             stopwatch.Restart();
             PriorityQueue<Move, int> moves = BoardObj.PseudoLegalMoves();
             moveGenCount++;
@@ -149,6 +151,7 @@ namespace V5
             int highestScore = int.MinValue;
             Break = false;
             Move bestMove = new(0);
+            iterations = 0;
             while (moves.Count > 0) {
                 Move m = moves.Dequeue();
                 DeadKing = false;
@@ -160,17 +163,18 @@ namespace V5
                     bestMove = m;
                 }
             }
-            Debug.Log("moveGenTime: " + moveGenTime + 
-                    "\nmoveCullTime: " + moveCullTime + 
-                    "\nTTAccessTime: " + TTAccessTime + 
-                    "\ndoMoveTime: " + doMoveTime +
-                    "\nevalTime: " + evalTime +
-                    "\nmoveGenCount: " + moveGenCount+ 
-                    "\nmoveCullCount: " + moveCullCount+ 
-                    "\nTTReadCount: " + TTReadCount+ 
-                    "\nTTWriteCount: " + TTWriteCount+ 
-                    "\ndoMoveCount: " + doMoveCount +
-                    "\nevalCount: " + evalCount);
+            // Debug.Log("moveGenTime: " + moveGenTime + 
+            //         "\nmoveCullTime: " + moveCullTime + 
+            //         "\nTTAccessTime: " + TTAccessTime + 
+            //         "\ndoMoveTime: " + doMoveTime +
+            //         "\nevalTime: " + evalTime +
+            //         "\nmoveGenCount: " + moveGenCount+ 
+            //         "\nmoveCullCount: " + moveCullCount+ 
+            //         "\nTTReadCount: " + TTReadCount+ 
+            //         "\nTTWriteCount: " + TTWriteCount+ 
+            //         "\ndoMoveCount: " + doMoveCount +
+            //         "\nevalCount: " + evalCount);
+            Debug.Log("v5 I: " + iterations);
             return bestMove;
         }
 

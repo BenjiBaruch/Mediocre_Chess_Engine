@@ -26,7 +26,9 @@ sealed class Version6 : ChessAbstract
 
     public override Move GetMoveTimed(BoardStruct b, long timeLimit)
     {
-        return search.BestMove(b, timeLimit);
+        Move best = search.BestMove(b, timeLimit);
+        Debug.Log("Best move: " + best.ToString);
+        return best;
     }
 
     public override double TimeFunc(string fName)

@@ -4,7 +4,7 @@ using System.Dynamic;
 using System.Text;
 using TMPro;
 
-public readonly struct Move
+public readonly struct Move : IEquatable<Move>, IEqualityComparer<Move>
 {
     // Heavily inspired by Sebastian Lague's video
     // Move value is stored as 16 bit value, where:
@@ -119,6 +119,21 @@ public readonly struct Move
     };
     public static bool StatIsPromotion(int type) => type > 3 && type < 8;
 
+    public bool Equals(Move other)
+    {
+        return value == other.value;
+    }
+
+    public bool Equals(Move x, Move y)
+    {
+        return x.value == y.value;
+    }
+
+    public int GetHashCode(Move obj)
+    {
+        return obj.value;
+    }
+
     public bool IsNull => value == 0;
     public bool IsEnPassant => Type == TypeEnPassant;
     public bool IsCastle => Type == TypeCastle;
@@ -127,7 +142,9 @@ public readonly struct Move
     public bool IsQuiet => Type < 2 || Type == 3;
 
     public new string ToString { get { 
-        return "" + Board.LetterCodes[StartCol] + (StartRow+1) + " --> " + Board.LetterCodes[DestCol] + (DestRow+1); 
+        return "" + Board.LetterCodes[StartCol] + "" + (StartRow+1) + "[" + Start + "]" +
+        " --> " + Board.LetterCodes[DestCol] + "" + (DestRow+1) + "[" + Dest + "]" + 
+        " :: (" + value + ")"; 
         }
     }
 

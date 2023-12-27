@@ -389,6 +389,60 @@ sealed class Board : IEquatable<Board>
 
         return 6;
     }
+
+    public string ToFENString() {
+        StringBuilder str = new(100);
+        int blanks = 0;
+        for (int i = 0; i < 64; i++) {
+            if (IntBoard[i] == 0) {
+                blanks++;
+            }
+            else {
+                if (blanks > 0) {
+                    str.Append(blanks);
+                    blanks = 0;
+                }
+                str.Append(IntBoard[i] switch {
+                    Piece.WhitePawn => 'P',
+                    Piece.BlackPawn => 'p',
+                    Piece.WhiteRook => 'R',
+                    Piece.BlackRook => 'r',
+                    Piece.White | Piece.Bishop => 'B',
+                    Piece.Black | Piece.Bishop => 'b',
+                    Piece.White | Piece.Knight => 'N',
+                    Piece.Black | Piece.Knight => 'n',
+                    Piece.White | Piece.Queen => 'Q',
+                    Piece.Black | Piece.Queen => 'q',
+                    Piece.White | Piece.King => 'K',
+                    Piece.Black | Piece.King => 'k',
+                    _ => '?'
+                });
+            }
+            if ((i & 0b111) == 7) {
+                if (blanks > 0) {
+                    str.Append(blanks);
+                    blanks = 0;
+                }
+                if (i < 63) {
+                    str.Append('/');
+                }
+            }
+        }
+        str.Append(' ');
+        str.Append(WhiteToMove ? 'w' : 'b');
+        str.Append(' ');
+        if ((castlingRights & WKCastleMask) > 0) str.Append('K');
+        if ((castlingRights & WQCastleMask) > 0) str.Append('Q');
+        if ((castlingRights & BKCastleMask) > 0) str.Append('k');
+        if ((castlingRights & BQCastleMask) > 0) str.Append('q');
+        if (castlingRights == 0) str.Append('-');
+        str.Append(' ');
+        str.Append(halfmoveClock);
+        str.Append(' ');
+        str.Append(Fullmove);
+
+        return str.ToString();
+    }
     
     public static int[] StartingBoard() 
     {
@@ -463,6 +517,9 @@ sealed class Board : IEquatable<Board>
 
         int movingPiece = Piece.Type(IntBoard[start]);
         int movingColor = Piece.Color(IntBoard[start]);
+
+        if (movingColor == Piece.White)
+            Fullmove++;
 
         // Update king index
         if (movingPiece == Piece.King) {
@@ -626,6 +683,9 @@ sealed class Board : IEquatable<Board>
         int isSpecialPawnMove = Move.StatType(move);
         int movingPiece = Piece.Type(IntBoard[dest]);
         int movingColor = Piece.Color(IntBoard[dest]);
+
+        if (movingColor == Piece.White)
+            Fullmove--;
 
 
         // Handles king index

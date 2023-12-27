@@ -26,7 +26,7 @@ namespace V6
         public Search() 
         {
             Zobrist.Initialize();
-            Transposition = new(27);
+            Transposition = new(26);
             sw = new();
         }
         public int SearchRec(int depth, int alpha, int beta, int consecutivePV) 
@@ -163,30 +163,30 @@ namespace V6
         bool SearchTo(int depth) {
             iterations = 0;
             PriorityQueue<Move, int> moves = BoardObj.LegalMoves();
-            if (moves.Count == 0) return false;
+            if (moves.Count == 0) {
+                Debug.Log("no legal moves");
+                return false;
+            }
             Break = false;
-            int alpha = int.MinValue;
+            int alpha = int.MinValue/2;
             if (principal.Value != 0) {
                 BoardObj.DoMove(principal);
-                alpha = -SearchRec(depth-1, 
-                                         (int)(int.MinValue*0.5F), 
-                                         (int)(int.MaxValue*0.5F), 
-                                         1);
+                alpha = -SearchRec(depth-1, int.MinValue/2, int.MaxValue/2, 1);
                 BoardObj.UndoMove();
             }
             while (moves.Count > 0) {
-                if (timeLimitReached)
+                if (timeLimitReached) {
+                    // Debug.Log("time limit");
                     return false;
+                }
                 Move m = moves.Dequeue();
+                // Debug.Log("m: " + m.ToString);
                 if (m.Value == principal.Value)
                     continue;
                 DeadKing = false;
 
                 BoardObj.DoMove(m);
-                int score = -SearchRec(depth-1, 
-                                       (int)(int.MinValue*0.5F), 
-                                       -alpha, 
-                                       0);
+                int score = -SearchRec(depth-1, int.MinValue/2, -alpha, 0);
                 BoardObj.UndoMove();
 
                 if (score > alpha) {
@@ -199,21 +199,31 @@ namespace V6
         public Move BestMove(BoardStruct boardStruct, long timeLimit) 
         {
             this.timeLimit = timeLimit;
+            Debug.Log(boardStruct.ToString());
             BoardObj = new(boardStruct);
             BoardObj.SetSearchObject(this);
             Transposition.ClearTable();
+            timeLimitReached = false;
+            sw.Restart();
             Move best = new(0);
             int depth = 2;
             principal = new(0);
             int iterationsFinal = 0;
             while (sw.ElapsedMilliseconds < timeLimit) {
                 bool success = SearchTo(depth++);
+                if (!BoardObj.ToStruct().Equals(boardStruct)) {
+                    Debug.Log("DISCONTINUOUS:\n" + BoardObj.ToStruct() + '\n' + boardStruct);
+                }
                 if (success) {
                     best = principal;
                     iterationsFinal = iterations;
                 }
+                else {
+                    break;
+                }
             }
-            Debug.Log("v6 Depth: " + depth + ", I: " + iterationsFinal);
+            sw.Stop();
+            Debug.Log("v6 Depth: " + depth + ", I: " + iterationsFinal + ", m:" + best.ToString + ", t:" + sw.ElapsedMilliseconds);
             return best;
         }
 

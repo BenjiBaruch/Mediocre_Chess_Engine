@@ -546,6 +546,8 @@ namespace V6
         void TryAdd(int pos1, int pos2, int flag)
         {
             // if (flag == Move.TypeEnPassant) Debug.Log("En Passant " + pos1 + " --> " + pos2);
+            if (pos1 == 2 && pos2 == 3 && Piece.Type(IntBoard[pos2]) == Piece.Queen)
+                Debug.Log("illegal move generated WOAH " + Piece.ToString(IntBoard[pos1]) + '\n' + ToStruct().ToString());
             if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
             if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
             if (flag == -1 && (pos2 >> 3) % 7 == 0) {

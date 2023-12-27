@@ -24,6 +24,7 @@ public class PieceManager : MonoBehaviour
     1: Player v CPU
     2: CPU1 v CPU2
     3: Time CPUs
+    4: Player v CPU w/ Time limit
     */
     public int Mode;
     public int SearchDepth;
@@ -115,6 +116,7 @@ public class PieceManager : MonoBehaviour
         }
         else if (Input.GetKeyDown(KeyCode.P)) {
             Debug.Log(board);
+            Debug.Log(board.ToFENString());
         }
         else if (Input.GetKeyDown(KeyCode.T)) {
             Debug.Log("Starting Perft Test");
@@ -202,10 +204,15 @@ public class PieceManager : MonoBehaviour
 
     void CPUMove() {
         Move m;
-        if (Mode == 3) {
+        if (Mode == 4) {
+            m = CPU1.GetMoveTimed(board.ToStruct(), TimeLimit);
+            if (!board.LegalMoves().Contains(m))
+                Debug.Log("ILLEGAL");
+        }
+        else if (Mode == 3) {
             AITurn = !AITurn;
-            long time1 = TimeMove(false, AITurn);
-            long time2 = TimeMove(true, !AITurn);
+            long time1 = TimeMove(true, AITurn);
+            long time2 = TimeMove(false, !AITurn);
             Debug.Log("CPU1: " + time1 + ", CPU2: " + time2);
             HandleAsymmetries(false);
             return;
