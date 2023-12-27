@@ -79,6 +79,7 @@ sealed class Board : IEquatable<Board>
         pawnLeapFile = 8;
         halfmoveClock = 0;
         capturedPiece = 0;
+        Fullmove = 1;
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
         StateHistory = new Stack<uint>(70);
         StateHistory.Push(StateData);
@@ -102,6 +103,8 @@ sealed class Board : IEquatable<Board>
             ColorToMove = Piece.Black;
             OpponentColor = Piece.White;
         }
+
+        Fullmove = 1;
         
         this.castlingRights = castlingRights;
         this.pawnLeapFile = pawnLeapFile;
@@ -142,6 +145,8 @@ sealed class Board : IEquatable<Board>
         pawnLeapFile = b.PawnLeapFile;
         halfmoveClock = b.HalfmoveClock;
         capturedPiece = 0;
+
+        Fullmove = 1;
 
         StateData = (uint)(castlingRights | (pawnLeapFile << 9) | (halfmoveClock << 13));
         StateHistory = new Stack<uint>(70);
@@ -187,7 +192,7 @@ sealed class Board : IEquatable<Board>
             halfmoveClock = 0;
         }
         if (progress < 6) {
-            Fullmove = 0;
+            Fullmove = 1;
         }
         kingIndex = ColorToMove == Piece.White ? wkIndex : bkIndex;
         StateData = (uint)(castlingRights | (capturedPiece << 4) | (pawnLeapFile << 9) | (halfmoveClock << 13));
@@ -392,6 +397,8 @@ sealed class Board : IEquatable<Board>
 
     public string ToFENString() {
         StringBuilder str = new(100);
+        
+        // Board
         int blanks = 0;
         for (int i = 0; i < 64; i++) {
             if (IntBoard[i] == 0) {
@@ -429,14 +436,30 @@ sealed class Board : IEquatable<Board>
             }
         }
         str.Append(' ');
+
+        // Color to move
         str.Append(WhiteToMove ? 'w' : 'b');
         str.Append(' ');
+        
+        // Castling rights
         if ((castlingRights & WKCastleMask) > 0) str.Append('K');
         if ((castlingRights & WQCastleMask) > 0) str.Append('Q');
         if ((castlingRights & BKCastleMask) > 0) str.Append('k');
         if ((castlingRights & BQCastleMask) > 0) str.Append('q');
         if (castlingRights == 0) str.Append('-');
         str.Append(' ');
+
+        // Pawn Leap file
+        if (pawnLeapFile > 7) {
+            str.Append('-');
+        }
+        else {
+            str.Append(LetterCodes[pawnLeapFile]);
+            str.Append(WhiteToMove ? '6' : '3');
+        }
+        str.Append(' ');
+
+        // Move counters
         str.Append(halfmoveClock);
         str.Append(' ');
         str.Append(Fullmove);
