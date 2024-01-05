@@ -207,7 +207,7 @@ public class PieceManager : MonoBehaviour
         if (Mode == 4) {
             m = CPU1.GetMoveTimed(board.ToStruct(), TimeLimit);
             if (!board.LegalMoves().Contains(m))
-                Debug.Log("ILLEGAL");
+                Debug.Log("ILLEGAL " + m.ToString);
         }
         else if (Mode == 3) {
             AITurn = !AITurn;

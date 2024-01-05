@@ -24,11 +24,7 @@ public readonly struct Move : IEquatable<Move>, IEqualityComparer<Move>
     public const int TypePromoteToKnight = 5;
     public const int TypePromoteToRook = 6;
     public const int TypePromoteToQueen = 7;
-    public const int TypeCapturePawn = 10;
-    public const int TypeCaptureKnight = 11;
-    public const int TypeCaptureBishop = 13;
-    public const int TypeCaptureRook = 14;
-    public const int TypeCaptureQueen = 15;
+    public const int TypeCapture = 8;
 
     // Masks determines which bits of value represent what information about move
     const ushort typeMask = 0b1111 << 12;
@@ -45,13 +41,13 @@ public readonly struct Move : IEquatable<Move>, IEqualityComparer<Move>
     public int TopScore => (value >> 12) switch {
             TypePromoteToQueen => 12,
             TypePromoteToKnight => 11,
-            TypeCaptureQueen => 10,
-            TypeCaptureRook => 9,
-            TypeCaptureBishop => 8,
-            TypeCaptureKnight => 8,
+            // TypeCaptureQueen => 10,
+            // TypeCaptureRook => 9,
+            // TypeCaptureBishop => 8,
+            // TypeCaptureKnight => 8,
             TypeEnPassant => 5,
             TypeCastle => 4,
-            TypeCapturePawn => 3,
+            // TypeCapturePawn => 3,
             TypePawnLeap => 2,
             TypeNormal => 1,
             _ => 0
@@ -59,13 +55,14 @@ public readonly struct Move : IEquatable<Move>, IEqualityComparer<Move>
     public int MinScore => (value >> 12) switch {
             TypePromoteToQueen => 0,
             TypePromoteToKnight => 1,
-            TypeCaptureQueen => 2,
-            TypeCaptureRook => 3,
-            TypeCaptureBishop => 4,
-            TypeCaptureKnight => 5,
+            // TypeCaptureQueen => 2,
+            // TypeCaptureRook => 3,
+            // TypeCaptureBishop => 4,
+            // TypeCaptureKnight => 5,
+            TypeCapture => 3,
             TypeEnPassant => 7,
             TypeCastle => 8,
-            TypeCapturePawn => 9,
+            // TypeCapturePawn => 9,
             TypePawnLeap => 10,
             TypeNormal => 11,
             _ => 12
@@ -91,22 +88,22 @@ public readonly struct Move : IEquatable<Move>, IEqualityComparer<Move>
     public int Type => value >> 12;
     public static int StatType(int value) => value >> 12;
     public ushort Value => value;
-    public static string TypeString(int type) => type switch {
-        TypeNormal => "Normal",
-        TypeCastle => "Castle",
-        TypeEnPassant => "EnPassant",
-        TypePawnLeap => "PawnLeap",
-        TypePromoteToBishop => "PromoteToBishop",
-        TypePromoteToKnight => "PromoteToKnight",
-        TypePromoteToRook => "PromoteToRook",
-        TypePromoteToQueen => "PromoteToQueen",
-        TypeCapturePawn  => "CapturePawn",
-        TypeCaptureKnight  => "CaptureKnight",
-        TypeCaptureBishop  => "CaptureBishop",
-        TypeCaptureRook  => "CaptureRook",
-        TypeCaptureQueen  => "CaptureQueen",
-        _ => "IncorrectFormat"
-    };
+    // public static string TypeString(int type) => type switch {
+    //     TypeNormal => "Normal",
+    //     TypeCastle => "Castle",
+    //     TypeEnPassant => "EnPassant",
+    //     TypePawnLeap => "PawnLeap",
+    //     TypePromoteToBishop => "PromoteToBishop",
+    //     TypePromoteToKnight => "PromoteToKnight",
+    //     TypePromoteToRook => "PromoteToRook",
+    //     TypePromoteToQueen => "PromoteToQueen",
+    //     TypeCapturePawn  => "CapturePawn",
+    //     TypeCaptureKnight  => "CaptureKnight",
+    //     TypeCaptureBishop  => "CaptureBishop",
+    //     TypeCaptureRook  => "CaptureRook",
+    //     TypeCaptureQueen  => "CaptureQueen",
+    //     _ => "IncorrectFormat"
+    // };
     
     // More properties
     public bool IsPromotion { get { return Type > 3 && Type < 8; } }
@@ -137,8 +134,8 @@ public readonly struct Move : IEquatable<Move>, IEqualityComparer<Move>
     public bool IsNull => value == 0;
     public bool IsEnPassant => Type == TypeEnPassant;
     public bool IsCastle => Type == TypeCastle;
-    public bool IsCapture => Type == 2 || (Type >= 10 && Type <= 15);
-    public bool IsNormalCapture => Type >= 10 && Type <= 15;
+    public bool IsCapture => (Type == TypeCapture) || (Type == TypeEnPassant);
+    public bool IsNormalCapture => IsCapture;
     public bool IsQuiet => Type < 2 || Type == 3;
 
     public new string ToString { get { 

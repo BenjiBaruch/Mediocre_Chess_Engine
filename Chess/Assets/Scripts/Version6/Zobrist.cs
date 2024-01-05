@@ -6,14 +6,13 @@ namespace V6
 {
     public class Zobrist 
     {
-        public static long[,] whitePieceHash;
-        public static long[,] blackPieceHash;
-        public static long blackToMoveHash;
-        public static long[] castleRightsHash;
-        public static long[] pawnLeapFilesHash;
+        public static ulong[,] pieceHash;
+        public static ulong blackToMoveHash;
+        public static ulong[] castleRightsHash;
+        public static ulong[] pawnLeapFilesHash;
         public readonly int[,] Transposition;
         public int keySize;
-        readonly long keyMask;
+        readonly ulong keyMask;
         readonly int tableSize;
         public enum Type {
             NoEntry,
@@ -26,9 +25,13 @@ namespace V6
         public Zobrist(int keySize) 
         {
             this.keySize = keySize;
-            keyMask = 0;
+            ulong oldKeyMask = 0;
             for (int i = 0; i < keySize; i++) {
-                keyMask |= 1L << i;
+                oldKeyMask |= 1UL << i;
+            }
+            keyMask = (1UL << keySize) - 1;
+            if (keyMask != oldKeyMask) {
+                Debug.Log("Discontinuous keymask: " + oldKeyMask + " --> " + keyMask);
             }
             tableSize = 1 << keySize;
             Transposition = new int[tableSize, 4];
@@ -101,7 +104,7 @@ namespace V6
             }
         }
 
-        public Tuple<Type, int> Read(long hash, int minDepth) 
+        public Tuple<Type, int> Read(ulong hash, int minDepth) 
         {
             int key = (int)(hash & keyMask);
             int check = (int)(hash >> 32);
@@ -113,7 +116,7 @@ namespace V6
             return new(Type.PrevAlpha, Transposition[index, 1]);
         }
 
-        public bool Write(long hash, int score, int depth, int hashMove) 
+        public bool Write(ulong hash, int score, int depth, int hashMove) 
         {
             int key = (int)(hash & keyMask);
             int check = (int)(hash >> 32);
@@ -132,47 +135,40 @@ namespace V6
             // help from https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.rngcryptoserviceprovider?view=net-8.0&redirectedfrom=MSDN
             // help from https://www.chessprogramming.org/Zobrist_Hashing
             RNG = new RNGCryptoServiceProvider();
-            whitePieceHash = new long[8,64];
-            blackPieceHash = new long[8,64];
-            for (int i = 0; i < 7; i++) {
+            pieceHash = new ulong[24,64];
+            for (int i = 9; i < 24; i++) {
                 for (int j = 0; j < 64; j++) {
-                    whitePieceHash[i,j] = GetRandom();
-                    blackPieceHash[i,j] = GetRandom();
+                    pieceHash[i,j] = GetRandom();
                 }
             }
             blackToMoveHash = GetRandom();
-            castleRightsHash = new long[16];
+            castleRightsHash = new ulong[16];
             for (int i = 0; i < 16; i++) {
                 castleRightsHash[i] = GetRandom();
             }
-            pawnLeapFilesHash = new long[9];
+            pawnLeapFilesHash = new ulong[9];
             for (int i = 0; i < 9; i++) {
                 pawnLeapFilesHash[i] = GetRandom();
             }
         }
 
-        public static long GetRandom() 
+        public static ulong GetRandom() 
         {
             var bytes = new byte[8];
             RNG.GetBytes(bytes);
-            long hash = 0;
+            ulong hash = 0;
             foreach (byte b in bytes) {
                 hash = (hash << 8) + b;
             }
             return hash;
         }
 
-        public static long HashBoard(MoveGen board) 
+        public static ulong HashBoard(MoveGen board) 
         {
-            long hash = board.WhiteToMove ? 0 : blackToMoveHash;
+            ulong hash = board.WhiteToMove ? 0 : blackToMoveHash;
             int[] IntBoard = board.IntBoard;
-            for (int i = 0; i < 64; i++) {
-                if ((IntBoard[i] & 0b11000) == 0b01000) {
-                    hash ^= whitePieceHash[IntBoard[i] & 0b111, i];
-                }
-                else if ((IntBoard[i] & 0b11000) == 0b10000) {
-                    hash ^= blackPieceHash[IntBoard[i] & 0b111, i];
-                }
+            for (int i = 0; i < 64; i++) if (IntBoard[i] > 0) {
+                hash ^= pieceHash[IntBoard[i], i];
             }
             hash ^= castleRightsHash[board.castlingRights];
             hash ^= pawnLeapFilesHash[board.pawnLeapFile];

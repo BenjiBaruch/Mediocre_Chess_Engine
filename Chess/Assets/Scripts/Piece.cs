@@ -32,18 +32,27 @@ static class Piece
     public const int White = 0b01000;
     public const int Black = 0b10000;
 
-    // Commonly referenced pieces
+    // All pieces
     public const int WhitePawn = White | Pawn;
     public const int BlackPawn = Black | Pawn;
+    public const int WhiteBishop = White | Bishop;
+    public const int BlackBishop = Black | Bishop;
+    public const int WhiteKnight = White | Knight;
+    public const int BlackKnight = Black | Knight;
     public const int WhiteRook = White | Rook;
     public const int BlackRook = Black | Rook;
+    public const int WhiteQueen = White | Queen;
+    public const int BlackQueen = Black | Queen;
+    public const int WhiteKing = White | King;
+    public const int BlackKing = Black | King;
 
     // Masks determine which bits of move determine which information about pieces
     public const int ColorMask = 0b11000;
     public const int TypeMask = 0b00111;
 
     public static char Code(int piece) {
-        return (piece & TypeMask) switch {
+        return ((piece & ColorMask) == White) ? 
+        (piece & TypeMask) switch {
             Empty => '_',
             King => 'K',
             Queen => 'Q',
@@ -51,6 +60,16 @@ static class Piece
             Knight => 'N',
             Bishop => 'B',
             Pawn => 'P',
+            _ => '?'
+        }: 
+        (piece & TypeMask) switch {
+            Empty => '_',
+            King => 'k',
+            Queen => 'q',
+            Rook => 'r',
+            Knight => 'n',
+            Bishop => 'b',
+            Pawn => 'p',
             _ => '?'
         };
     }

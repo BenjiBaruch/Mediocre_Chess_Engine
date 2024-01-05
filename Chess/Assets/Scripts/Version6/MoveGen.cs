@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Utils;
 using Debug = UnityEngine.Debug;
 
@@ -25,6 +26,7 @@ namespace V6
         public uint StateData;
         // Contains history of the state data from all previous states (moves) in a game
         public Stack<uint> StateHistory { get; }
+        Stack<ulong> HashHistory;
         public int Fullmove;
         // Current state data:
         int halfmoveClock;
@@ -42,6 +44,12 @@ namespace V6
         const ulong WKPathMask = 0b111UL << 4;
         const ulong BQPathMask = 0b111UL << 58;
         const ulong BKPathMask = 0b111UL << 60;
+        public ulong[] Bitboards { get; set; }
+        public ulong WhiteOccupyBoard { get; set; }
+        public ulong WhiteAttackBoard { get; set; }
+        public ulong BlackOccupyBoard { get; set; }
+        public ulong BlackAttackBoard { get; set; }
+        public ulong FullOccupyBoard { get; set; }
         // King indices:
         int kingIndex, wkIndex, bkIndex;
         # nullable enable
@@ -62,12 +70,14 @@ namespace V6
             DrawByAgreement,
             Terminated
         }
-        public long Hash { get; set; }
+        public ulong Hash { get; set; }
         // List of legal moves in current position
         PriorityQueue<Move, int> moveList; 
         public MoveGen(BoardStruct b) {
             IntBoard = b.IntBoard;
             moveList = new PriorityQueue<Move, int>(50);
+
+            SetBitboards();
 
             WhiteToMove = b.WhiteToMove;
             if (WhiteToMove) {
@@ -80,10 +90,10 @@ namespace V6
             }
 
             for (int i = 0; i < 64; i++) {
-                if (IntBoard[i] == (Piece.White | Piece.King)) {
+                if (IntBoard[i] == Piece.WhiteKing) {
                     wkIndex = i;
                 }
-                if (IntBoard[i] == (Piece.Black | Piece.King)) {
+                if (IntBoard[i] == Piece.BlackKing) {
                     bkIndex = i;
                 }
             }
@@ -100,6 +110,8 @@ namespace V6
             StateHistory.Push(StateData);
 
             Hash = Zobrist.HashBoard(this);
+            HashHistory = new(200);
+            HashHistory.Push(Hash);
         }
 
         public MoveGen Clone() => new(ToStruct());
@@ -109,13 +121,29 @@ namespace V6
         public void SetSearchObject(Search search) {
             this.search = search;
         }
+
+        void SetBitboards() {
+            Bitboards = new ulong[24];
+            for (int i = 0; i < 64; i++) {
+                if (IntBoard[i] > 0) {
+                    Bitboards[IntBoard[i]] |= 1UL << i;
+                }
+            }
+            WhiteOccupyBoard = WhiteAttackBoard = 0UL;
+            BlackOccupyBoard = BlackAttackBoard = 0UL;
+            for (int i = Piece.King; i <= Piece.Queen; i++) {
+                WhiteOccupyBoard |= Bitboards[Piece.White | i];
+                BlackOccupyBoard |= Bitboards[Piece.Black | i];
+            }
+        }
         public bool IsCheck() 
         {
             // Checks if king is currently in check
             PseudoLegalMoves();
+            int kingIndex = (OpponentColor == Piece.White) ? wkIndex : bkIndex;
             while (moveList.Count > 0) {
                 Move move = moveList.Dequeue();
-                if (move.Dest == (OpponentColor == Piece.White ? wkIndex : bkIndex))
+                if (move.Dest == kingIndex)
                     return true;
             }
             return false;
@@ -147,85 +175,44 @@ namespace V6
             Hash ^= Zobrist.pawnLeapFilesHash[(StateData >> 9) & 0b1111];
             pawnLeapFile = 8;
             halfmoveClock = (int)(((StateData >> 13) & 0b111111) + 1);
-
-            if (WhiteToMove) {
-                Hash ^= Zobrist.whitePieceHash[movingPiece, start];
-                if (!move.IsPromotion) {
-                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
-                }
-                if (IntBoard[dest] > 0) {
-                    Hash ^= Zobrist.blackPieceHash[movingPiece, dest];
-                }
-            }
-            else {
-                Hash ^= Zobrist.blackPieceHash[movingPiece, start];
-                if (!move.IsPromotion) {
-                    Hash ^= Zobrist.blackPieceHash[movingPiece, dest];
-                }
-                if (IntBoard[dest] > 0) {
-                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
-                }
-            }
+            capturedPiece = 0;
 
             // Handle pawn promotion moves
             if (move.IsPromotion)
             {
                 halfmoveClock = 0;
-                IntBoard[start] = 0;
-                capturedPiece = IntBoard[dest];
-                switch (type)
-                {
-                    case Move.TypePromoteToQueen:
-                        IntBoard[dest] = Piece.Queen | movingColor;
-                        break;
-                    case Move.TypePromoteToKnight:
-                        IntBoard[dest] = Piece.Knight | movingColor;
-                        break;
-                    case Move.TypePromoteToBishop:
-                        IntBoard[dest] = Piece.Bishop | movingColor;
-                        break;
-                    case Move.TypePromoteToRook:
-                        IntBoard[dest] = Piece.Rook | movingColor;
-                        break;
-                }
-                if (WhiteToMove)
-                    Hash ^= Zobrist.whitePieceHash[Piece.Type(IntBoard[dest]), dest];
-                else
-                    Hash ^= Zobrist.blackPieceHash[Piece.Type(IntBoard[dest]), dest];
+                int promotion = movingColor | (type switch {
+                    Move.TypePromoteToQueen => Piece.Queen,
+                    Move.TypePromoteToKnight => Piece.Knight,
+                    Move.TypePromoteToRook => Piece.Rook,
+                    Move.TypePromoteToBishop => Piece.Bishop,
+                    _ => 0
+                });
+                Promote(start, dest, promotion);
             }
             // Handles all other moves
             else switch (type)
             {
                 // Castle moves
                 case Move.TypeCastle:
-                    capturedPiece = 0;
-                    IntBoard[dest] = IntBoard[start];
-                    IntBoard[start] = 0;
+                    FromToDoSafe(start, dest);
                     Hash ^= Zobrist.castleRightsHash[castlingRights];
                     switch (dest)
                     {
                         case 2:
-                            IntBoard[0] = 0;
-                            IntBoard[3] = Piece.WhiteRook;
-                            Hash ^= Zobrist.whitePieceHash[Piece.Rook, 0] ^ Zobrist.whitePieceHash[Piece.Rook, 3];
+                            FromToDoSafe(0, 3);
                             castlingRights &= 0b0011;
                             break;
                         case 6:
-                            IntBoard[7] = 0;
-                            IntBoard[5] = Piece.WhiteRook;
-                            Hash ^= Zobrist.whitePieceHash[Piece.Rook, 7] ^ Zobrist.whitePieceHash[Piece.Rook, 5];
+                            FromToDoSafe(7, 5);
                             castlingRights &= 0b0011;
                             break;
                         case 58:
-                            IntBoard[56] = 0;
-                            IntBoard[59] = Piece.BlackRook;
-                            Hash ^= Zobrist.blackPieceHash[Piece.Rook, 56] ^ Zobrist.blackPieceHash[Piece.Rook, 59];
+                            FromToDoSafe(56, 59);
                             castlingRights &= 0b1100;
                             break;
                         case 62:
-                            IntBoard[63] = 0;
-                            IntBoard[61] = Piece.BlackRook;
-                            Hash ^= Zobrist.blackPieceHash[Piece.Rook, 63] ^ Zobrist.blackPieceHash[Piece.Rook, 61];
+                            FromToDoSafe(63, 61);
                             castlingRights &= 0b1100;
                             break;
                     }
@@ -234,27 +221,16 @@ namespace V6
                 // En passant captures
                 case Move.TypeEnPassant:
                     if ((dest >> 3) == 0b010)
-                    {
-                        capturedPiece = Piece.WhitePawn;
-                        IntBoard[dest + 8] = 0;
-                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, dest + 8];
-                    }
+                        KillAt(dest + 8);
                     else
-                    {
-                        capturedPiece = Piece.BlackPawn;
-                        IntBoard[dest - 8] = 0;
-                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, dest - 8];
-                    }
-                    IntBoard[dest] = IntBoard[start];
-                    IntBoard[start] = 0;
+                        KillAt(dest - 8);
+                    FromToDoSafe(start, dest);
                     break;
                 // Pawn moving forward two spaces
                 case Move.TypePawnLeap:
                     halfmoveClock = 0;
                     pawnLeapFile = start & 0b111; // Saves file state data so that it can be captured in future en passant
-                    capturedPiece = 0;
-                    IntBoard[dest] = IntBoard[start];
-                    IntBoard[start] = 0;
+                    FromToDoSafe(start, dest);
                     break;
                 // All other moves
                 default:
@@ -262,8 +238,10 @@ namespace V6
                     {
                         // King moves remove castling rights
                         Hash ^= Zobrist.castleRightsHash[castlingRights];
-                        if (movingColor == Piece.White) castlingRights &= 0b0011;
-                        else castlingRights &= 0b1100;
+                        if (movingColor == Piece.White) 
+                            castlingRights &= 0b0011;
+                        else 
+                            castlingRights &= 0b1100;
                         Hash ^= Zobrist.castleRightsHash[castlingRights];
                     }
                     else if (movingPiece == Piece.Rook)
@@ -273,16 +251,16 @@ namespace V6
                         switch (start)
                         {
                             case 0:
-                                castlingRights &= 0b0111;
+                                castlingRights &= WQCastleMask ^ 15;
                                 break;
                             case 7:
-                                castlingRights &= 0b1011;
+                                castlingRights &= WKCastleMask ^ 15;
                                 break;
                             case 56:
-                                castlingRights &= 0b1101;
+                                castlingRights &= BQCastleMask ^ 15;
                                 break;
                             case 63:
-                                castlingRights &= 0b1110;
+                                castlingRights &= BKCastleMask ^ 15;
                                 break;
                         }
                         Hash ^= Zobrist.castleRightsHash[castlingRights];
@@ -290,9 +268,7 @@ namespace V6
                     else if (movingPiece == Piece.Pawn) {
                         halfmoveClock = 0; // Reset halfmove clock if pawn is moved
                     }
-                    capturedPiece = IntBoard[dest];
-                    IntBoard[dest] = IntBoard[start];
-                    IntBoard[start] = 0;
+                    FromToDo(start, dest);
                     break;
             }
 
@@ -305,39 +281,29 @@ namespace V6
             // Repack state data
             // Format: MMMMMMMMMMMMMMHHHHHHLLLLPPPPPCCCC, 
             // M = Move, H = halfmoveClock, L = pawnLeapFile, P = capturedPiece, C = castlingRights
-            int shortType = type switch {
-                Move.TypeEnPassant => 1,
-                Move.TypeCastle => 2,
-                4 | 5 | 6 | 7 => 3,
-                _ => 0
-            };
-            int isSpecialPawnMove = ((type >= 4 && type <= 7) || type == 2) ? 1 : 0;
-            StateData = (uint)castlingRights | ((uint)capturedPiece << 4) | ((uint)pawnLeapFile << 9) | ((uint)halfmoveClock << 13) | ((uint)(isSpecialPawnMove << 12 | dest << 6 | start) << 19);
+            StateData = (uint)castlingRights | ((uint)capturedPiece << 4) | ((uint)pawnLeapFile << 9) | ((uint)halfmoveClock << 13);
             // Save state data
             StateHistory.Push(StateData);
+            HashHistory.Push(Hash);
 
             SwapTurn();
         }
 
-        public void UndoMove()
+        public void UndoMove(Move move)
         {
             // Unpack state data
             StateData = StateHistory.Pop();
-
-            Hash ^= Zobrist.castleRightsHash[castlingRights] ^ Zobrist.pawnLeapFilesHash[pawnLeapFile];
+            Hash = HashHistory.Pop();
 
             castlingRights = (int)StateData & 0b1111;
             capturedPiece = (int)(StateData >> 4) & 0b11111;
             pawnLeapFile = (int)(StateData >> 9) & 0b1111;
             halfmoveClock = (int)(StateData >> 13) & 0b111111;
-            int move = (int)(StateData >> 19);
-
-            Hash ^= Zobrist.castleRightsHash[castlingRights] ^ Zobrist.pawnLeapFilesHash[pawnLeapFile];
 
             // Unpack move
-            int start = Move.StatStart(move);
-            int dest = Move.StatDest(move);
-            int isSpecialPawnMove = Move.StatType(move);
+            int start = move.Start;
+            int dest = move.Dest;
+            int type = move.Type;
             int movingPiece = Piece.Type(IntBoard[dest]);
             int movingColor = Piece.Color(IntBoard[dest]);
 
@@ -349,101 +315,69 @@ namespace V6
                     bkIndex = start;
             }
 
+            int whiteRooks = 0;
+            int blackRooks = 0;
 
-            // Undoes Special Pawn moves
-            if (isSpecialPawnMove == 1) {
-                if ((dest >> 3) == 0) {
-                    // Undoes black promotion
-                    Hash ^= Zobrist.blackPieceHash[movingPiece, dest];
-                    Hash ^= Zobrist.blackPieceHash[Piece.Pawn, start];
-                    IntBoard[start] = Piece.BlackPawn;
-                    IntBoard[dest] = capturedPiece;
-                    if (capturedPiece > 0) {
-                        Hash ^= Zobrist.whitePieceHash[capturedPiece & 0b111, dest];
-                    }
-                }
-                else if ((dest >> 3) == 7) {
-                    // Undoes white promotion
-                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
-                    Hash ^= Zobrist.whitePieceHash[Piece.Pawn, start];
-                    IntBoard[start] = Piece.WhitePawn;
-                    IntBoard[dest] = capturedPiece;
-                    if (capturedPiece > 0) {
-                        Hash ^= Zobrist.blackPieceHash[capturedPiece & 0b111, dest];
-                    }
-                }
-                else {
-                    // Undoes En Passant
-                    if ((dest >> 3) == 0b010) {
-                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, start];
-                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, dest];
-                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, dest + 8];
-                        IntBoard[dest + 8] = Piece.WhitePawn;
-                    }
-                    else {
-                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, start];
-                        Hash ^= Zobrist.whitePieceHash[Piece.Pawn, dest];
-                        Hash ^= Zobrist.blackPieceHash[Piece.Pawn, dest - 8];
-                        IntBoard[dest - 8] = Piece.BlackPawn;
-                    }
-                    IntBoard[start] = IntBoard[dest];
-                    IntBoard[dest] = 0;
-                }
+            for (int i = 0; i < 64; i++) {
+                if (IntBoard[i] == Piece.WhiteRook) whiteRooks++;
+                else if (IntBoard[i] == Piece.BlackRook) blackRooks++;
             }
-            // Undoes Castle
-            else if (Piece.IsType(IntBoard[dest], Piece.King) && Math.Abs(start - dest) == 2) {
-                
-                if (Piece.IsColor(IntBoard[dest], Piece.White)) {
-                    Hash ^= Zobrist.whitePieceHash[Piece.King, start];
-                    Hash ^= Zobrist.whitePieceHash[Piece.King, dest];    
-                }
-                else {
-                    Hash ^= Zobrist.blackPieceHash[Piece.King, start];
-                    Hash ^= Zobrist.blackPieceHash[Piece.King, dest];
-                }
-                
-                capturedPiece = 0;
-                IntBoard[start] = IntBoard[dest];
-                IntBoard[dest] = 0;
-                switch (dest)
-                {
-                    case 2:
-                        IntBoard[0] = Piece.WhiteRook;
-                        IntBoard[3] = 0;
-                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 0];
-                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 3];  
-                        break;
-                    case 6:
-                        IntBoard[7] = Piece.WhiteRook;
-                        IntBoard[5] = 0;
-                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 7];
-                        Hash ^= Zobrist.whitePieceHash[Piece.Rook, 5];
-                        break;
-                    case 58:
-                        IntBoard[56] = Piece.BlackRook;
-                        IntBoard[59] = 0;
-                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 56];
-                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 59];
-                        break;
-                    case 62:
-                        IntBoard[63] = Piece.BlackRook;
-                        IntBoard[61] = 0;
-                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 63];
-                        Hash ^= Zobrist.blackPieceHash[Piece.Rook, 61];
-                        break;
-                }
-            }
-            // Undoes all other moves
-            else {
-                IntBoard[start] = IntBoard[dest];
-                IntBoard[dest] = capturedPiece;
-                if (movingColor == Piece.White) {
-                    Hash ^= Zobrist.whitePieceHash[movingPiece, start];
-                    Hash ^= Zobrist.whitePieceHash[movingPiece, dest];
-                    if (capturedPiece > 0) { 
-                        Hash ^= Zobrist.whitePieceHash[capturedPiece & 0b111, dest];
+
+            bool normal = whiteRooks < 3 && blackRooks < 3;
+
+
+            if (move.IsPromotion)
+                // Undo pawn promotion
+                Depromote(dest, start, capturedPiece);
+            else switch (type) {
+                // Undo En Passant
+                case Move.TypeEnPassant:
+                    FromToUndoSafe(dest, start);
+                    if ((dest >> 3) == 0b010)
+                        ReviveAt(dest + 8, Piece.WhitePawn);
+                    else
+                        ReviveAt(dest - 8, Piece.BlackPawn);
+                    break;
+                // Undo Castle
+                case Move.TypeCastle:
+                    FromToUndoSafe(dest, start);
+                    switch (dest) {
+                        case 2:
+                            FromToUndoSafe(3, 0);
+                            break;
+                        case 6:
+                            FromToUndoSafe(5, 7);
+                            break;
+                        case 58:
+                            FromToUndoSafe(59, 56);
+                            break;
+                        case 62:
+                            FromToUndoSafe(63, 61);
+                            break;
                     }
-                }
+                    break;
+                // Undo all other moves
+                default:
+                    FromToUndo(dest, start, capturedPiece);
+                    break;
+            }
+
+            whiteRooks = 0;
+            blackRooks = 0;
+
+            for (int i = 0; i < 64; i++) {
+                if (IntBoard[i] == Piece.WhiteRook) whiteRooks++;
+                else if (IntBoard[i] == Piece.BlackRook) blackRooks++;
+            }
+
+            if (normal && (blackRooks > 2 || whiteRooks > 2)) {
+                Debug.Log("Rook duplicated with move " + move.ToString +
+                        "\nWR = " + whiteRooks + ", BR = " + blackRooks + 
+                        "\nNew board:\n" + ToStruct().ToString() +
+                        "\nIsCastle = " + (Piece.IsType(IntBoard[dest], Piece.King) && Math.Abs(start - dest) == 2) +
+                        "\nMoving Piece = " + Piece.ToString(movingPiece | movingColor) +
+                        "\nStart = " + start + "\nDest = " + dest + 
+                        "\nCaptured Piece = " + Piece.ToString(capturedPiece));
             }
 
             SwapTurn();
@@ -456,7 +390,97 @@ namespace V6
             halfmoveClock = (int)(StateData >> 13) & 0b111111;
         }
 
-        void SwapTurn() {
+        void FromToDo(int from, int to)
+        {
+            // Moves a piece from one square to another
+            // Handles IntBoard, bitboard, and hash representations
+            // Checks for captures
+            if (IntBoard[to] > 0) {
+                capturedPiece = IntBoard[to];
+                Bitboards[capturedPiece] ^= 1UL << to;
+                Hash ^= Zobrist.pieceHash[capturedPiece, to];
+            }
+            Bitboards[IntBoard[from]] ^= (1UL << from) | (1UL << to);
+            Hash ^= Zobrist.pieceHash[IntBoard[from], from] ^ Zobrist.pieceHash[IntBoard[from], to];
+            IntBoard[to] = IntBoard[from];
+            IntBoard[from] = 0;
+        }
+
+        void FromToUndo(int from, int to, int capture) {
+            // Same as before, but takes a previously captured piece as input
+            // And revives it if applicable
+            // Does not update hash
+            if (capture > 0) {
+                Bitboards[capture] |= 1UL << from;
+            }
+            Bitboards[IntBoard[from]] ^= (1UL << from) | (1UL << to);
+            IntBoard[to] = IntBoard[from];
+            IntBoard[from] = capture;
+        }
+
+        void FromToDoSafe(int from, int to) 
+        {
+            // Assumes no captures involved
+            Bitboards[IntBoard[from]] ^= (1UL << from) | (1UL << to);
+            Hash ^= Zobrist.pieceHash[IntBoard[from], from] ^ Zobrist.pieceHash[IntBoard[from], to];
+            IntBoard[to] = IntBoard[from];
+            IntBoard[from] = 0;
+        }
+
+        void FromToUndoSafe(int from, int to) {
+            // Same as before, but does not update hash
+            Bitboards[IntBoard[from]] ^= (1UL << from) | (1UL << to);
+            IntBoard[to] = IntBoard[from];
+            IntBoard[from] = 0;
+        }
+
+        void KillAt(int index) 
+        {
+            // Removes a piece from the board, handling intboard, bitboards, and hash
+            capturedPiece = IntBoard[index];
+            Bitboards[capturedPiece] ^= 1UL << index;
+            Hash ^= Zobrist.pieceHash[capturedPiece, index];
+            IntBoard[index] = 0;
+        }
+
+        void ReviveAt(int index, int piece) 
+        {
+            // Creates a piece on the board, used for move undoing, handles intboard and bitboards
+            Bitboards[piece] |= 1UL << index;
+            IntBoard[index] = piece;
+        }
+
+        void Promote(int from, int to, int promotion) 
+        {
+            // Promotes pawn, handles intboard, bitboard, and hash
+            if (IntBoard[to] > 0) {
+                capturedPiece = IntBoard[to];
+                Bitboards[capturedPiece] ^= 1UL << to;
+                Hash ^= Zobrist.pieceHash[capturedPiece, to];
+            }
+            Bitboards[IntBoard[from]] ^= 1UL << from;
+            Hash ^= Zobrist.pieceHash[IntBoard[from], from];
+            Bitboards[promotion] |= 1UL << to;
+            Hash ^= Zobrist.pieceHash[promotion, to];
+            IntBoard[from] = 0;
+            IntBoard[to] = promotion;
+        }
+
+        void Depromote(int from, int to, int capture) 
+        {
+            // Undoes pawn promotion, handles intboard and bitboards
+            int pawn = Piece.Pawn | (Piece.Color(IntBoard[to]));
+            if (capture > 0) {
+                Bitboards[capture] |= 1UL << from;
+            }
+            Bitboards[IntBoard[from]] ^= 1UL << from;
+            Bitboards[pawn] |= 1UL << to;
+            IntBoard[from] = capture;
+            IntBoard[to] = pawn;
+        }
+
+        void SwapTurn() 
+        {
             WhiteToMove = !WhiteToMove;
             Hash ^= Zobrist.blackToMoveHash;
             if (WhiteToMove)
@@ -473,9 +497,29 @@ namespace V6
             }
         }
 
+        void GenerateOccupyBoards() {
+            // Needlessly aesthetic way to generate occupancy bitboards
+            WhiteOccupyBoard = Bitboards[Piece.WhiteKing]
+                             | Bitboards[Piece.WhiteQueen]
+                             | Bitboards[Piece.WhiteRook]
+                             | Bitboards[Piece.WhiteKnight]
+                             | Bitboards[Piece.WhiteBishop]
+                             | Bitboards[Piece.WhitePawn];
+            BlackOccupyBoard = Bitboards[Piece.BlackKing]
+                             | Bitboards[Piece.BlackQueen]
+                             | Bitboards[Piece.BlackRook]
+                             | Bitboards[Piece.BlackKnight]
+                             | Bitboards[Piece.BlackBishop]
+                             | Bitboards[Piece.BlackPawn];
+            FullOccupyBoard  = WhiteOccupyBoard 
+                             | BlackAttackBoard;
+        }
+
         public PriorityQueue<Move, int> PseudoLegalMoves()
         {
             moveList = new(50);
+
+            GenerateOccupyBoards();
 
             for (int pos = 0; pos < 64; pos++)
                 if (Piece.IsColor(IntBoard[pos], ColorToMove))
@@ -528,7 +572,7 @@ namespace V6
                 DoMove(m);
                 if (!IsCheck())
                     legalMoves.Enqueue(m, m.MinScore);
-                UndoMove();
+                UndoMove(m);
             }
             return legalMoves;
         }
@@ -545,9 +589,6 @@ namespace V6
 
         void TryAdd(int pos1, int pos2, int flag)
         {
-            // if (flag == Move.TypeEnPassant) Debug.Log("En Passant " + pos1 + " --> " + pos2);
-            if (pos1 == 2 && pos2 == 3 && Piece.Type(IntBoard[pos2]) == Piece.Queen)
-                Debug.Log("illegal move generated WOAH " + Piece.ToString(IntBoard[pos1]) + '\n' + ToStruct().ToString());
             if (pos1 < 0 || pos1 > 63 || pos2 < 0 || pos2 > 63) return;
             if (Piece.IsColor(IntBoard[pos2], ColorToMove)) return;
             if (flag == -1 && (pos2 >> 3) % 7 == 0) {
@@ -676,14 +717,14 @@ namespace V6
             TryAdd(pos, pos + 9, 0);
             if (Piece.IsColor(IntBoard[pos], Piece.White))
             {
-                if ((castlingRights & WKCastleMask) > 0 &&
+                if ((castlingRights & WQCastleMask) > 0 &&
                     IntBoard[pos - 1] == 0 &&
                     IntBoard[pos - 2] == 0 &&
                     IntBoard[pos - 3] == 0) 
                 {
                     TryAdd(pos, pos - 2, Move.TypeCastle);
                 }
-                if ((castlingRights & WQCastleMask) > 0 && 
+                if ((castlingRights & WKCastleMask) > 0 && 
                     IntBoard[pos + 1] == 0 && 
                     IntBoard[pos + 2] == 0) 
                 {
@@ -692,14 +733,14 @@ namespace V6
             } 
             else
             {
-                if ((castlingRights & BKCastleMask) > 0 && 
+                if ((castlingRights & BQCastleMask) > 0 && 
                     IntBoard[pos - 1] == 0 && 
                     IntBoard[pos - 2] == 0 &&
                     IntBoard[pos - 3] == 0) 
                 {
                     TryAdd(pos, pos - 2, Move.TypeCastle);
                 }
-                if ((castlingRights & BQCastleMask) > 0 && 
+                if ((castlingRights & BKCastleMask) > 0 && 
                     IntBoard[pos + 1] == 0 && 
                     IntBoard[pos + 2] == 0) 
                 {

@@ -83,7 +83,7 @@ namespace V6
                 // More extensive notes over there                
                 BoardObj.DoMove(best);
                 int score = -SearchRec(depth-1, -beta, -alpha, consecutivePV + 1);
-                BoardObj.UndoMove();
+                BoardObj.UndoMove(best);
                 if (score >= beta)
                     return beta;
                 if (score > alpha)
@@ -123,7 +123,7 @@ namespace V6
                 int score = -SearchRec(depth-1, -beta, -alpha, 0);
 
                 // Undo move
-                BoardObj.UndoMove();
+                BoardObj.UndoMove(m);
 
                 // Update alpha-beta values
                 // Help from https://www.chessprogramming.org/Alpha-Beta
@@ -172,7 +172,7 @@ namespace V6
             if (principal.Value != 0) {
                 BoardObj.DoMove(principal);
                 alpha = -SearchRec(depth-1, int.MinValue/2, int.MaxValue/2, 1);
-                BoardObj.UndoMove();
+                BoardObj.UndoMove(principal);
             }
             while (moves.Count > 0) {
                 if (timeLimitReached) {
@@ -187,7 +187,7 @@ namespace V6
 
                 BoardObj.DoMove(m);
                 int score = -SearchRec(depth-1, int.MinValue/2, -alpha, 0);
-                BoardObj.UndoMove();
+                BoardObj.UndoMove(m);
 
                 if (score > alpha) {
                     alpha = score;
