@@ -1,7 +1,13 @@
 To-do
 
+* Move gen precompuation.
+* Remove redundant move types
+
+
+
+
+
 * Optimize cullillegalmoves (is currently brute-force)
-* 0x88 board
 * Static Exchange Eval
 * Iterative deepening
 * PV move order

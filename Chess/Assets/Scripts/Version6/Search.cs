@@ -26,6 +26,7 @@ namespace V6
         public Search() 
         {
             Zobrist.Initialize();
+            PrecomputeMoves.ComputeMoveTables();
             Transposition = new(26);
             sw = new();
         }

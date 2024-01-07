@@ -6,6 +6,8 @@ using System.Runtime.ExceptionServices;
 using System.Diagnostics;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+using System.Text;
+using Unity.VisualScripting;
 
 public class PieceManager : MonoBehaviour
 {
@@ -31,6 +33,7 @@ public class PieceManager : MonoBehaviour
     public long TimeLimit;
     // Chess AI classes
     public ChessAbstract CPU1, CPU2;
+    public string DisplayBitBoard;
     SpriteRenderer[] highlights;
     // Stores whether mouse is currently down
     bool mouseDrag = false;
@@ -45,6 +48,7 @@ public class PieceManager : MonoBehaviour
     // Determines how quickly the piece will move towards the mouse (or how quickly mouseOffset approaches zero)
     public static Vector3 MouseGravity = new(0.8F, 0.8F, 0.8F);
     static Vector3 dragOffset = new(0, 0, -1);
+    static Vector3 highlightOffset = new(0, 0, -1);
     Board board;
     int highlightedTile;
     int doMoveIn;
@@ -70,7 +74,7 @@ public class PieceManager : MonoBehaviour
             // Generates highlight circle for tile
             GameObject highlight = Instantiate(
                 HighlightPrefab, // new highlight object inherits from prefab
-                tileCoords + new Vector3(0, 0, 1), // Positions highlight at correct position, behind piece
+                tileCoords + highlightOffset, // Positions highlight at correct position, behind piece
                 Quaternion.identity // Starts with no rotation
             );
             highlights[i] = highlight.GetComponent<SpriteRenderer>();
@@ -95,7 +99,8 @@ public class PieceManager : MonoBehaviour
         }
     }
 
-    void HandleKeyInputs() {
+    void HandleKeyInputs() 
+    {
         /*
         Key Commands:
         Space: Handle asymmetries between game board and internal board
@@ -108,6 +113,8 @@ public class PieceManager : MonoBehaviour
         */
         if (Input.GetKeyDown(KeyCode.Space)) {
             HandleAsymmetries(true);
+            if (!DisplayBitBoard.Equals(""))
+                DrawBitBoard();
         }
         // Use backspace to manually undo moves
         else if (Input.GetKeyDown(KeyCode.Backspace)) {
@@ -156,7 +163,8 @@ public class PieceManager : MonoBehaviour
         }
     }
 
-    int SpriteIndex(int pieceCode) => pieceCode switch {
+    int SpriteIndex(int pieceCode) => pieceCode switch 
+    {
         Piece.White | Piece.King => 0,
         Piece.Black | Piece.King => 1,
         Piece.White | Piece.Queen => 2,
@@ -172,7 +180,8 @@ public class PieceManager : MonoBehaviour
         _ => 12
     };
 
-    void KillAt(int index) {
+    void KillAt(int index) 
+    {
         foreach (PieceObject p in pieces)
             if (p.Position == index) {
                 if (Piece.IsColor(board.PieceAt(index), Piece.White)) {
@@ -187,7 +196,8 @@ public class PieceManager : MonoBehaviour
         }
     }
 
-    long TimeMove(bool side, bool doMove) {
+    long TimeMove(bool side, bool doMove) 
+    {
         Stopwatch watch = Stopwatch.StartNew();
         Move m;
         if (side) {
@@ -202,7 +212,8 @@ public class PieceManager : MonoBehaviour
         return time1;
     }
 
-    void CPUMove() {
+    void CPUMove() 
+    {
         Move m;
         if (Mode == 4) {
             m = CPU1.GetMoveTimed(board.ToStruct(), TimeLimit);
@@ -232,7 +243,25 @@ public class PieceManager : MonoBehaviour
         }
     }
 
-    void Update() {
+    void DrawBitBoard()
+    {
+        ulong bitboard = CPU1.GrabBitBoard(DisplayBitBoard, board.ToStruct());
+        for (int i = 0; i < 64; i++) {
+            if ((bitboard & (1UL << i)) == 0)
+                highlights[i].enabled = false;
+            else
+                highlights[i].enabled = true;
+        }
+        // StringBuilder str = new(75);
+        // for (int i = 63; i >= 0; i--) {
+        //     str.Append((bitboard & (1UL << i)) == 0 ? '0' : '1');
+        //     if (i % 8 == 0) str.Append('\n');
+        // }
+        // Debug.Log("Bit Board: " + DisplayBitBoard + '\n' + str.ToString());
+    }
+
+    void Update() 
+    {
         // Unity calls Update() method every frame.
 
         // Help from https://docs.unity3d.com/ScriptReference/Input.GetMouseButton.html
@@ -283,11 +312,15 @@ public class PieceManager : MonoBehaviour
             // If mouse released
             mouseDrag = false;
             // Update highlights
-            for (int i = 0; i < 64; i++) {
-                highlights[i].enabled = false;
+            if (DisplayBitBoard.Equals("")) {
+                for (int i = 0; i < 64; i++) {
+                    highlights[i].enabled = false;
+                }
+                if (mouseTile > -1)
+                    highlights[mouseTile].enabled = true;
+            } else {
+                DrawBitBoard();
             }
-            if (mouseTile > -1)
-                highlights[mouseTile].enabled = true;
             // Drop piece
             if (selectedPiece != null) {
                 // Get move
@@ -322,6 +355,9 @@ public class PieceManager : MonoBehaviour
                     }
                     selectedPiece.PlacePiece(mousePosition - mouseOffset);
                     board.DoMove(move);
+                    if (!DisplayBitBoard.Equals("")) {
+                        DrawBitBoard();
+                    }
                     doMoveIn = 60;
                 }
                 // Deselect piece
@@ -329,13 +365,15 @@ public class PieceManager : MonoBehaviour
             }
         } else {
             // If mouse not down, update highlights
-            if (highlightedTile > -1 && mouseTile != highlightedTile) {
-                highlights[highlightedTile].enabled = false;
+            if (DisplayBitBoard.Equals("")) {
+                if (highlightedTile > -1 && mouseTile != highlightedTile) {
+                    highlights[highlightedTile].enabled = false;
+                }
+                if (mouseTile > -1) {
+                    highlights[mouseTile].enabled = true;
+                }
+                highlightedTile = mouseTile;
             }
-            if (mouseTile > -1) {
-                highlights[mouseTile].enabled = true;
-            }
-            highlightedTile = mouseTile;
         }
         if (doMoveIn > 0) {
             doMoveIn--;

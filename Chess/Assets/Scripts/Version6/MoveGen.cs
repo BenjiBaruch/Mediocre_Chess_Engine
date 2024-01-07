@@ -1,8 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Numerics;
+using Unity.Mathematics;
 using Utils;
 using Debug = UnityEngine.Debug;
+using UnityEngine.UI;
+using Unity.VisualScripting;
+using TMPro;
 
 namespace V6
 {
@@ -40,16 +45,45 @@ namespace V6
         const int BQCastleMask = 0b0001; // Black Queenside Castle Mask
 
         // CastlePathMasks:
-        const ulong WQPathMask = 0b111UL << 2;
-        const ulong WKPathMask = 0b111UL << 4;
-        const ulong BQPathMask = 0b111UL << 58;
-        const ulong BKPathMask = 0b111UL << 60;
+        const ulong WQUnthreatenedMask = 0b111UL << 2;
+        const ulong WKUnthreatenedMask = 0b111UL << 4;
+        const ulong BQUnthreatenedMask = 0b111UL << 58;
+        const ulong BKUnthreatenedMask = 0b111UL << 60;
+        const ulong WQEmptyMask = 0b1110UL;
+        const ulong WKEmptyMask = 0b11UL << 4;
+        const ulong BQEmptyMask = 0b1110UL << 56;
+        const ulong BKEmptyMask = 0b11UL << 60;
+
+        const ulong rank0Mask = 0xFFUL;
+        const ulong rank1Mask = 0xFFUL << 8;
+        const ulong rank2Mask = 0xFFUL << 16;
+        const ulong rank3Mask = 0xFFUL << 24;
+        const ulong rank4Mask = 0xFFUL << 32;
+        const ulong rank5Mask = 0xFFUL << 40;
+        const ulong rank6Mask = 0xFFUL << 48;
+        const ulong rank7Mask = 0xFFUL << 56;
+        const ulong file0Mask = 0x101010101010101UL;
+        const ulong file7Mask = 0x8080808080808080UL;
+        const ulong edgeRankMask = rank0Mask | rank7Mask;
+        const ulong notEdgeRankMask = ~edgeRankMask;
+        const ulong edgeFileMask = file0Mask | file7Mask;
+        const ulong notEdgeFileMask = ~edgeFileMask;
+        const ulong notFile0Mask = ~file0Mask;
+        const ulong notFile7Mask = ~file7Mask;
+        const ulong notFile0OrEdgeRankMask = ~(file0Mask | edgeRankMask);
+        const ulong notFile7OrEdgeRankMask = ~(file7Mask | edgeRankMask);
+
         public ulong[] Bitboards { get; set; }
         public ulong WhiteOccupyBoard { get; set; }
         public ulong WhiteAttackBoard { get; set; }
         public ulong BlackOccupyBoard { get; set; }
         public ulong BlackAttackBoard { get; set; }
+        ulong FriendlyOccupyBoard;
+        ulong EnemyOccupyBoard;
+        ulong FriendlyInverseBoard;
+        ulong EnemyInverseBoard;
         public ulong FullOccupyBoard { get; set; }
+        ulong FullInverseBoard;
         // King indices:
         int kingIndex, wkIndex, bkIndex;
         # nullable enable
@@ -513,6 +547,18 @@ namespace V6
                              | Bitboards[Piece.BlackPawn];
             FullOccupyBoard  = WhiteOccupyBoard 
                              | BlackAttackBoard;
+            WhiteAttackBoard = BlackAttackBoard = 0;
+            if (WhiteToMove) {
+                FriendlyOccupyBoard = WhiteOccupyBoard;
+                EnemyOccupyBoard = BlackOccupyBoard;
+            }
+            else {
+                FriendlyOccupyBoard = BlackOccupyBoard;
+                EnemyOccupyBoard = WhiteOccupyBoard;
+            }
+            FriendlyInverseBoard = ~FriendlyOccupyBoard;
+            EnemyInverseBoard = ~EnemyOccupyBoard;
+            FullInverseBoard = ~FullOccupyBoard;
         }
 
         public PriorityQueue<Move, int> PseudoLegalMoves()
@@ -521,30 +567,182 @@ namespace V6
 
             GenerateOccupyBoards();
 
-            for (int pos = 0; pos < 64; pos++)
-                if (Piece.IsColor(IntBoard[pos], ColorToMove))
-                    GenMoves(pos);
+            ulong bishopMap, knightMap, rookMap, queenMap, kingMap;
+
+            ulong threatenedMap = 0; // todo
+
+
+            if (WhiteToMove) {
+                // Set bitboards
+                bishopMap = Bitboards[Piece.WhiteBishop];
+                knightMap = Bitboards[Piece.WhiteKnight];
+                rookMap = Bitboards[Piece.WhiteRook];
+                queenMap = Bitboards[Piece.WhiteQueen];
+                kingMap = Bitboards[Piece.WhiteKing];
+
+                // Generate white castle moves
+                if ((castlingRights & WQCastleMask) == 1 && 
+                    (FullOccupyBoard & WQEmptyMask) == 0 &&
+                    (threatenedMap & WQUnthreatenedMask) == 0) {
+                        Move m = new(4, 2, Move.TypeCastle);
+                        moveList.Enqueue(m, m.MinScore);
+                }
+                if ((castlingRights & WKCastleMask) == 1 && 
+                    (FullOccupyBoard & WKEmptyMask) == 0 &&
+                    (threatenedMap & WKUnthreatenedMask) == 0) {
+                        Move m = new(4, 6, Move.TypeCastle);
+                        moveList.Enqueue(m, m.MinScore);
+                }
+                
+
+                // Generate white's pawn moves
+                ulong pawnMap = Bitboards[Piece.WhitePawn];
+                
+                // Pawn push 1
+                ulong moveMap = (pawnMap << 8) & FullInverseBoard & notEdgeRankMask;
+                FeedQuietByOffset(8, moveMap);
+                
+                // Pawn push 2
+                moveMap = (moveMap << 8) & FullInverseBoard & rank3Mask; 
+                FeedQuietByOffset(16, moveMap);
+                
+                // Pawn attack up-left
+                moveMap = ((pawnMap & notFile0OrEdgeRankMask) << 7) & EnemyOccupyBoard;
+                FeedCaptureByOffset(7, moveMap);
+                
+                // Pawn attack up-right
+                moveMap = ((pawnMap & notFile7OrEdgeRankMask) << 9) & EnemyOccupyBoard;
+                FeedCaptureByOffset(9, moveMap);
+                
+                // En Passant
+                if (pawnLeapFile < 8) {
+                    moveMap = pawnMap & PrecomputeMoves.WhiteEnPassantSentrySpaces[pawnLeapFile];
+                    int dest = pawnLeapFile + 16;
+                    while (moveMap > 0) {
+                        Move m = new(math.tzcnt(moveMap), dest, Move.TypeEnPassant);
+                        moveList.Enqueue(m, m.MinScore);
+                        moveMap &= moveMap - 1;
+                    }
+                }
+
+                // Pawn promotion
+                pawnMap &= rank6Mask;
+                if (pawnMap > 0) {
+                    // Pawn push promotion
+                    moveMap = (pawnMap << 8) & FullInverseBoard;
+                    if (moveMap > 0)
+                        FeedPromotionByOffset(8, moveMap);
+                    // Pawn up-left capture promotion
+                    moveMap = ((pawnMap & notFile0Mask) << 7) & EnemyOccupyBoard;
+                    if (moveMap > 0)
+                        FeedPromotionByOffset(7, moveMap);
+
+                    // Pawn up-right capture promotion
+                    moveMap = ((pawnMap & notFile7Mask) << 9) & EnemyOccupyBoard;
+                    if (moveMap > 0)
+                        FeedPromotionByOffset(9, moveMap);
+                }
+            }
+            else {
+                // Set bitboards
+                bishopMap = Bitboards[Piece.BlackBishop];
+                knightMap = Bitboards[Piece.BlackKnight];
+                rookMap = Bitboards[Piece.BlackRook];
+                queenMap = Bitboards[Piece.BlackQueen];
+                kingMap = Bitboards[Piece.BlackKing];
+
+
+                // Generate black's castle moves
+                if ((castlingRights & BQCastleMask) == 1 && 
+                    (FullOccupyBoard & BQEmptyMask) == 0 &&
+                    (threatenedMap & BQUnthreatenedMask) == 0) {
+                        Move m = new(60, 58, Move.TypeCastle);
+                        moveList.Enqueue(m, m.MinScore);
+                }
+                if ((castlingRights & BKCastleMask) == 1 && 
+                    (FullOccupyBoard & BKEmptyMask) == 0 &&
+                    (threatenedMap & BKUnthreatenedMask) == 0) {
+                        Move m = new(60, 62, Move.TypeCastle);
+                        moveList.Enqueue(m, m.MinScore);
+                }
+
+                // Generate black's pawn moves
+                ulong pawnMap = Bitboards[Piece.BlackPawn];
+
+                // Pawn push 1
+                ulong moveMap = (pawnMap >> 8) & FullInverseBoard & notEdgeRankMask;
+                FeedQuietByOffset(-8, moveMap);
+
+                // Pawn push 2
+                moveMap = (moveMap >> 8) & FullInverseBoard & rank4Mask;
+                FeedQuietByOffset(-16, moveMap);
+
+                // Pawn attack down-right
+                moveMap = ((pawnMap & notFile7OrEdgeRankMask) >> 7) & EnemyOccupyBoard;
+                FeedCaptureByOffset(-7, moveMap);
+
+                // Pawn attack down-left
+                moveMap = ((pawnMap & notFile0OrEdgeRankMask) >> 9) & EnemyOccupyBoard;
+                FeedCaptureByOffset(-9, moveMap);
+
+                // En passant
+                if (pawnLeapFile < 8) {
+                    moveMap = pawnMap & PrecomputeMoves.BlackEnPassantSentrySpaces[pawnLeapFile];
+                    int dest = pawnLeapFile + 40;
+                    while (moveMap > 0) {
+                        Move m = new(math.tzcnt(moveMap), dest, Move.TypeEnPassant);
+                        moveList.Enqueue(m, m.MinScore);
+                        moveMap &= moveMap - 1;
+                    }
+                }
+
+                // Pawn promotion
+                pawnMap &= rank1Mask;
+                if (pawnMap > 0) {
+                    // Pawn push promotion
+                    moveMap = (pawnMap >> 8) & FullInverseBoard;
+                    if (moveMap != 0)
+                        FeedPromotionByOffset(-8, moveMap);
+                    
+                    // Pawn capture right promotion
+                    moveMap = ((pawnMap & notFile7Mask) >> 7) & EnemyOccupyBoard;
+                    if (moveMap != 0)
+                        FeedPromotionByOffset(-7, moveMap);
+                    
+                    // Pawn capture left promotion
+                    moveMap = ((pawnMap & notFile0Mask) >> 9) & EnemyOccupyBoard;
+                    if (moveMap != 0)
+                        FeedPromotionByOffset(-9, moveMap);
+                }
+            }
+
+            // Knight moves
+            while (knightMap > 0) {
+                int knightIndex = math.tzcnt(knightMap);
+                FeedBasicMoves(knightIndex, PrecomputeMoves.KnightMoves[knightIndex]);
+                knightMap &= knightMap - 1;
+            }
+
+            // King moves
+            FeedBasicMoves(kingIndex, PrecomputeMoves.KingMoves[kingIndex]);
+
+            // Sliding moves
+            while (bishopMap > 0) {
+                SlidingMoves(math.tzcnt(bishopMap));
+                bishopMap &= bishopMap - 1;
+            }
+            while (rookMap > 0) {
+                SlidingMoves(math.tzcnt(rookMap));
+                rookMap &= rookMap - 1;
+            }
+            while (queenMap > 0) {
+                SlidingMoves(math.tzcnt(queenMap));
+                queenMap &= queenMap - 1;
+            }
 
             return moveList;
         }
 
-        void GenMoves(int pos) 
-        {
-            if (Piece.CanSlide(IntBoard[pos]))
-                SlidingMoves(pos);
-            else switch (Piece.Type(IntBoard[pos]))
-            {
-                case Piece.King:
-                    KingMoves(pos);
-                    break;
-                case Piece.Pawn:
-                    PawnMoves(pos);
-                    break;
-                case Piece.Knight:
-                    KnightMoves(pos);
-                    break;
-            }
-        }
 
         public PriorityQueue<Move, int> CullIllegalMoves(PriorityQueue<Move, int> moveList) 
         {
@@ -558,10 +756,10 @@ namespace V6
                     SwapTurn();
                     ulong killMap = DrawKillMap(PseudoLegalMoves());
                     killMap &= m.Dest switch {
-                        2 => WQPathMask,
-                        6 => WKPathMask,
-                        58 => BQPathMask,
-                        62 => BKPathMask,
+                        2 => WQUnthreatenedMask,
+                        6 => WKUnthreatenedMask,
+                        58 => BQUnthreatenedMask,
+                        62 => BKUnthreatenedMask,
                         _ => 0UL
                     };
                     SwapTurn();
@@ -604,6 +802,88 @@ namespace V6
                 Move m = new(pos1, pos2, flag);
                 moveList.Enqueue(m, m.MinScore);
             }
+        }
+
+        void FeedBasicMoves(int start, ulong attackBitboard)
+        {
+            ulong captureBitboard = attackBitboard & EnemyOccupyBoard;
+            attackBitboard &= FullInverseBoard;
+            while (attackBitboard != 0) {
+                int dest = math.tzcnt(attackBitboard);
+                Move m = new(start, dest, Move.TypeNormal);
+                moveList.Enqueue(m, m.MinScore);
+                attackBitboard &= attackBitboard - 1;
+            }
+            while (captureBitboard != 0) {
+                int dest = math.tzcnt(captureBitboard);
+                Move m = new(start, dest, Move.TypeCapture);
+                moveList.Enqueue(m, m.MinScore);
+                captureBitboard &= captureBitboard - 1;
+            }
+        }
+        
+        void FeedQuietMoves(int start, ulong attackBitboard)
+        {
+            while (attackBitboard != 0) {
+                int dest = math.tzcnt(attackBitboard);
+                Move m = new(start, dest, Move.TypeNormal);
+                moveList.Enqueue(m, m.MinScore);
+                attackBitboard &= attackBitboard - 1;
+            }
+        }
+
+        void FeedCaptureMoves(int start, ulong attackBitboard)
+        {
+            while (attackBitboard != 0) {
+                int dest = math.tzcnt(attackBitboard);
+                Move m = new(start, dest, Move.TypeCapture);
+                moveList.Enqueue(m, m.MinScore);
+                attackBitboard &= attackBitboard - 1;
+            }
+        }
+
+        void FeedQuietByOffset(int offset, ulong attackBitboard)
+        {
+            while (attackBitboard != 0) {
+                int dest = math.tzcnt(attackBitboard);
+                Move m = new(dest - offset, dest, Move.TypeNormal);
+                moveList.Enqueue(m, m.MinScore);
+                attackBitboard &= attackBitboard - 1;
+            }
+        }
+
+        void FeedCaptureByOffset(int offset, ulong attackBitboard)
+        {
+            while (attackBitboard != 0) {
+                int dest = math.tzcnt(attackBitboard);
+                Move m = new(dest - offset, dest, Move.TypeCapture);
+                moveList.Enqueue(m, m.MinScore);
+                attackBitboard &= attackBitboard - 1;
+            }
+        }
+
+        void FeedPromotionByOffset(int offset, ulong attackBitboard)
+        {
+            while (attackBitboard != 0) {
+                int dest = math.tzcnt(attackBitboard);
+                Move m1 = new(dest - offset, dest, Move.TypePromoteToQueen);
+                Move m2 = new(dest - offset, dest, Move.TypePromoteToKnight);
+                moveList.Enqueue(m1, m1.MinScore);
+                moveList.Enqueue(m2, m2.MinScore);
+                attackBitboard &= attackBitboard - 1;
+            }
+        }
+
+        ulong PawnAttackMap(int color)
+        {
+            ulong pawnMap;
+            if (color == Piece.White)
+            {
+                pawnMap = Bitboards[Piece.WhitePawn];
+                return ((pawnMap & notFile0Mask) << 7) | ((pawnMap & notFile7Mask) << 9);
+            }
+            pawnMap = Bitboards[Piece.BlackPawn];
+            return ((pawnMap & notFile7Mask) >> 7) | ((pawnMap & notFile0Mask) >> 9);
         }
 
         void SlidingMoves(int pos)
@@ -749,30 +1029,64 @@ namespace V6
             }
         }
 
-        void KnightMoves(int pos)
+        public ulong GrabBitBoard(string name)
         {
-            int x = pos & 0b111;
-            int y = pos >> 3;
-            if (x > 0)
-            {
-                if (y > 1) TryAdd(pos, pos - 17, Move.TypeNormal);
-                if (y < 6) TryAdd(pos, pos + 15, Move.TypeNormal);
-                if (x > 1) 
-                { 
-                    if (y > 0) TryAdd(pos, pos - 10, Move.TypeNormal);
-                    if (y < 7) TryAdd(pos, pos + 6,  Move.TypeNormal);
-                }
-            }
-            if (x < 7)
-            {
-                if (y > 1) TryAdd(pos, pos - 15, Move.TypeNormal);
-                if (y < 6) TryAdd(pos, pos + 17, Move.TypeNormal);
-                if (x < 6)
-                {
-                    if (y > 0) TryAdd(pos, pos - 6,  0);
-                    if (y < 7) TryAdd(pos, pos + 10, 0);
-                }
-            }
+            GenerateOccupyBoards();
+            return name switch {
+                "wk" => Bitboards[Piece.WhiteKing],
+                "wq" => Bitboards[Piece.WhiteQueen],
+                "wr" => Bitboards[Piece.WhiteRook],
+                "wn" => Bitboards[Piece.WhiteKnight],
+                "wb" => Bitboards[Piece.WhiteBishop],
+                "wp" => Bitboards[Piece.WhitePawn],
+                "bk" => Bitboards[Piece.BlackKing],
+                "bq" => Bitboards[Piece.BlackQueen],
+                "br" => Bitboards[Piece.BlackRook],
+                "bn" => Bitboards[Piece.BlackKnight],
+                "bb" => Bitboards[Piece.BlackBishop],
+                "bp" => Bitboards[Piece.BlackPawn],
+                "ak" => GrabBitBoard("wk") | GrabBitBoard("bk"),
+                "aq" => GrabBitBoard("wq") | GrabBitBoard("bq"),
+                "ar" => GrabBitBoard("wr") | GrabBitBoard("br"),
+                "an" => GrabBitBoard("wn") | GrabBitBoard("bn"),
+                "ab" => GrabBitBoard("wb") | GrabBitBoard("bb"),
+                "ap" => GrabBitBoard("wp") | GrabBitBoard("bp"),
+                "wa" => WhiteAttackBoard,
+                "wo" => WhiteOccupyBoard,
+                "fo" => FriendlyOccupyBoard,
+                "fi" => FriendlyInverseBoard,
+                "eo" => EnemyOccupyBoard,
+                "ei" => EnemyInverseBoard,
+                "ao" => FullOccupyBoard,
+                "ai" => FullOccupyBoard,
+                "pa" => PawnAttackMap(ColorToMove),
+                "r0" => rank0Mask,
+                "r1" => rank1Mask,
+                "r2" => rank2Mask,
+                "r3" => rank3Mask,
+                "r4" => rank4Mask,
+                "r5" => rank5Mask,
+                "r6" => rank6Mask,
+                "r7" => rank7Mask,
+                "re" => edgeRankMask,
+                "nre" => notEdgeRankMask,
+                "f0" => file0Mask,
+                "f7" => file7Mask,
+                "nf0" => notFile0Mask,
+                "nf7" => notFile7Mask,
+                "nf0e" => notFile0OrEdgeRankMask,
+                "nf7e" => notFile7OrEdgeRankMask,
+                "wqu" => WQUnthreatenedMask,
+                "wku" => WKUnthreatenedMask,
+                "bqu" => BQUnthreatenedMask,
+                "bku" => BKUnthreatenedMask,
+                "wqe" => WQEmptyMask,
+                "wke" => WKEmptyMask,
+                "bqe" => BQEmptyMask,
+                "bke" => BKEmptyMask,
+                "km" => DrawKillMap(PseudoLegalMoves()),
+                _ => 0UL
+            };
         }
     }
 }

@@ -6,10 +6,13 @@ namespace V6
     {
         public static ulong[] KnightMoves;
         public static ulong[] KingMoves;
+        public static ulong[] WhiteEnPassantSentrySpaces;
+        public static ulong[] BlackEnPassantSentrySpaces;
         public static void ComputeMoveTables() 
         {
             ComputeKingTable();
             ComputeKnightTable();
+            ComputeEnPassantInfo();
         } 
 
         static void ComputeKnightTable() 
@@ -55,6 +58,23 @@ namespace V6
                                  (1UL << pos + 7) |
                                  (1UL << pos + 8) |
                                  (1UL << pos + 9);
+            }
+        }
+
+        static void ComputeEnPassantInfo()
+        {
+            WhiteEnPassantSentrySpaces = new ulong[9];
+            BlackEnPassantSentrySpaces = new ulong[9];
+
+            for (int i = 0; i < 8; i++) {
+                if (i > 0) {
+                    WhiteEnPassantSentrySpaces[i] |= 1UL << i + 23;
+                    BlackEnPassantSentrySpaces[i] |= 1UL << i + 39;
+                }
+                if (i < 7) {
+                    WhiteEnPassantSentrySpaces[i] |= 1UL << i + 25;
+                    BlackEnPassantSentrySpaces[i] |= 1UL << i + 41;
+                }
             }
         }
     }

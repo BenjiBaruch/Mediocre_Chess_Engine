@@ -16,7 +16,7 @@ sealed class Version6 : ChessAbstract
     {
         Side = side;
         search = new();
-        Name = "Iterative Deepeing and PV";
+        Name = "Iterative Deepeing, PV, Optimized Movegen";
         Version = "6";
     }
     public override Move GetMoveDrafted(BoardStruct b, int depth)
@@ -39,5 +39,10 @@ sealed class Version6 : ChessAbstract
     public override Dictionary<string, int> GetPartCounts()
     {
         throw new NotImplementedException();
+    }
+
+    public override ulong GrabBitBoard(string name, BoardStruct b)
+    {
+        return new MoveGen(b).GrabBitBoard(name);
     }
 }

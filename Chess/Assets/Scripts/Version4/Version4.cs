@@ -40,4 +40,9 @@ sealed class Version4 : ChessAbstract
     {
         throw new NotImplementedException();
     }
+
+    public override ulong GrabBitBoard(string name, BoardStruct b)
+    {
+        throw new NotImplementedException();
+    }
 }

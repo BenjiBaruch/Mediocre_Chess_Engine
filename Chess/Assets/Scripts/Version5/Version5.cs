@@ -85,4 +85,9 @@ sealed class Version5 : ChessAbstract
         b.DoMove(b.LegalMoves()[0]);
         return search.GetPartCounts(b.ToStruct(), 5);
     }
+
+    public override ulong GrabBitBoard(string name, BoardStruct b)
+    {
+        throw new NotImplementedException();
+    }
 }
