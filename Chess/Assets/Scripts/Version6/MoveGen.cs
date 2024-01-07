@@ -8,6 +8,7 @@ using Debug = UnityEngine.Debug;
 using UnityEngine.UI;
 using Unity.VisualScripting;
 using TMPro;
+using UnityEditor.Timeline;
 
 namespace V6
 {
@@ -546,7 +547,7 @@ namespace V6
                              | Bitboards[Piece.BlackBishop]
                              | Bitboards[Piece.BlackPawn];
             FullOccupyBoard  = WhiteOccupyBoard 
-                             | BlackAttackBoard;
+                             | BlackOccupyBoard;
             WhiteAttackBoard = BlackAttackBoard = 0;
             if (WhiteToMove) {
                 FriendlyOccupyBoard = WhiteOccupyBoard;
@@ -616,7 +617,7 @@ namespace V6
                 
                 // En Passant
                 if (pawnLeapFile < 8) {
-                    moveMap = pawnMap & PrecomputeMoves.WhiteEnPassantSentrySpaces[pawnLeapFile];
+                    moveMap = pawnMap & PrecomputeMoves.WhiteEPSentries[pawnLeapFile];
                     int dest = pawnLeapFile + 16;
                     while (moveMap > 0) {
                         Move m = new(math.tzcnt(moveMap), dest, Move.TypeEnPassant);
@@ -687,7 +688,7 @@ namespace V6
 
                 // En passant
                 if (pawnLeapFile < 8) {
-                    moveMap = pawnMap & PrecomputeMoves.BlackEnPassantSentrySpaces[pawnLeapFile];
+                    moveMap = pawnMap & PrecomputeMoves.BlackEPSentries[pawnLeapFile];
                     int dest = pawnLeapFile + 40;
                     while (moveMap > 0) {
                         Move m = new(math.tzcnt(moveMap), dest, Move.TypeEnPassant);
@@ -726,17 +727,35 @@ namespace V6
             // King moves
             FeedBasicMoves(kingIndex, PrecomputeMoves.KingMoves[kingIndex]);
 
+            // // Sliding moves
+            // while (bishopMap > 0) {
+            //     SlidingMoves(math.tzcnt(bishopMap));
+            //     bishopMap &= bishopMap - 1;
+            // }
+            // while (rookMap > 0) {
+            //     SlidingMoves(math.tzcnt(rookMap));
+            //     rookMap &= rookMap - 1;
+            // }
+            // while (queenMap > 0) {
+            //     SlidingMoves(math.tzcnt(queenMap));
+            //     queenMap &= queenMap - 1;
+            // }
             // Sliding moves
             while (bishopMap > 0) {
-                SlidingMoves(math.tzcnt(bishopMap));
+                int index = math.tzcnt(bishopMap);
+                FeedBasicMoves(index, PrecomputeMoves.DiagBSlide[index]);
                 bishopMap &= bishopMap - 1;
             }
             while (rookMap > 0) {
-                SlidingMoves(math.tzcnt(rookMap));
+                int index = math.tzcnt(rookMap);
+                FeedBasicMoves(index, PrecomputeMoves.OrthBSlide[index]);
                 rookMap &= rookMap - 1;
             }
             while (queenMap > 0) {
-                SlidingMoves(math.tzcnt(queenMap));
+                int index = math.tzcnt(queenMap);
+                ulong map = PrecomputeMoves.DiagBSlide[index];
+                map |= PrecomputeMoves.OrthBSlide[index];
+                FeedBasicMoves(index, map);
                 queenMap &= queenMap - 1;
             }
 
@@ -936,97 +955,16 @@ namespace V6
                 }
             }
         }
-
-        void PawnMoves(int pos)
+        public ulong GrabAttackBoard(int square)
         {
-            int posFile = pos & 0b111;
-            int posRank = pos >> 3;
-            if (WhiteToMove)
-            {
-                if (IntBoard[pos + 8] == 0) { 
-                    TryAdd(pos, pos + 8, -1); // Push up one
-                    if (posRank == 1 && IntBoard[pos + 16] == 0)
-                        TryAdd(pos, pos + 16, Move.TypePawnLeap); // Push up two
-                }
-                if (posFile > 0 && Piece.IsColor(IntBoard[pos + 7], OpponentColor)) {
-                    TryAdd(pos, pos + 7, -1); // Pawn attack up-left
-                } 
-                else if (posFile - 1 == pawnLeapFile && posRank == 4) {
-                    TryAdd(pos, pos + 7, Move.TypeEnPassant); // Pawn en passant capture left
-                }
-                if (posFile < 7 && Piece.IsColor(IntBoard[pos + 9], OpponentColor)) { 
-                    TryAdd(pos, pos + 9, -1); // Pawn attack up-right
-                } 
-                else if (pawnLeapFile < 8 && posFile + 1 == pawnLeapFile && posRank == 4) {
-                    TryAdd(pos, pos + 9, Move.TypeEnPassant); // Pawn en passant capture right
-                }
+            ulong attackMap = 0UL;
+            PseudoLegalMoves();
+            while (moveList.Count > 0) {
+                Move m = moveList.Dequeue();
+                if (m.Start == square)
+                    attackMap |= 1UL << m.Dest; 
             }
-            else
-            {
-                if (IntBoard[pos - 8] == 0)
-                {
-                    TryAdd(pos, pos - 8, -1);
-                    if (posRank == 6 && IntBoard[pos - 16] == 0)
-                        TryAdd(pos, pos - 16, 3);
-                }
-                if (posFile < 7 && Piece.IsColor(IntBoard[pos - 7], OpponentColor)) {
-                    TryAdd(pos, pos - 7, -1);
-                } 
-                else if (pawnLeapFile < 8 && posFile + 1 == pawnLeapFile && posRank == 3) {
-                    TryAdd(pos, pos - 7, Move.TypeEnPassant);
-                }
-                if (posFile > 0 && Piece.IsColor(IntBoard[pos - 9], OpponentColor)) {
-                    TryAdd(pos, pos - 9, -1);
-                } 
-                else if (posFile - 1 == pawnLeapFile && posRank == 3) {
-                    TryAdd(pos, pos - 9, Move.TypeEnPassant);
-                }
-            }
-        }
-
-        void KingMoves(int pos)
-        {
-            TryAdd(pos, pos - 9, 0);
-            TryAdd(pos, pos - 8, 0);
-            TryAdd(pos, pos - 7, 0);
-            TryAdd(pos, pos - 1, 0);
-            TryAdd(pos, pos + 1, 0);
-            TryAdd(pos, pos + 1, 0);
-            TryAdd(pos, pos + 7, 0);
-            TryAdd(pos, pos + 8, 0);
-            TryAdd(pos, pos + 9, 0);
-            if (Piece.IsColor(IntBoard[pos], Piece.White))
-            {
-                if ((castlingRights & WQCastleMask) > 0 &&
-                    IntBoard[pos - 1] == 0 &&
-                    IntBoard[pos - 2] == 0 &&
-                    IntBoard[pos - 3] == 0) 
-                {
-                    TryAdd(pos, pos - 2, Move.TypeCastle);
-                }
-                if ((castlingRights & WKCastleMask) > 0 && 
-                    IntBoard[pos + 1] == 0 && 
-                    IntBoard[pos + 2] == 0) 
-                {
-                    TryAdd(pos, pos + 2, Move.TypeCastle);
-                }
-            } 
-            else
-            {
-                if ((castlingRights & BQCastleMask) > 0 && 
-                    IntBoard[pos - 1] == 0 && 
-                    IntBoard[pos - 2] == 0 &&
-                    IntBoard[pos - 3] == 0) 
-                {
-                    TryAdd(pos, pos - 2, Move.TypeCastle);
-                }
-                if ((castlingRights & BKCastleMask) > 0 && 
-                    IntBoard[pos + 1] == 0 && 
-                    IntBoard[pos + 2] == 0) 
-                {
-                    TryAdd(pos, pos + 2, Move.TypeCastle);
-                }
-            }
+            return attackMap;
         }
 
         public ulong GrabBitBoard(string name)
@@ -1058,7 +996,7 @@ namespace V6
                 "eo" => EnemyOccupyBoard,
                 "ei" => EnemyInverseBoard,
                 "ao" => FullOccupyBoard,
-                "ai" => FullOccupyBoard,
+                "ai" => FullInverseBoard,
                 "pa" => PawnAttackMap(ColorToMove),
                 "r0" => rank0Mask,
                 "r1" => rank1Mask,

@@ -45,4 +45,9 @@ sealed class Version6 : ChessAbstract
     {
         return new MoveGen(b).GrabBitBoard(name);
     }
+
+    public override ulong GrabAttackBoard(int square, BoardStruct b)
+    {
+        return new MoveGen(b).GrabAttackBoard(square);
+    }
 }

@@ -45,4 +45,9 @@ sealed class Version4 : ChessAbstract
     {
         throw new NotImplementedException();
     }
+
+    public override ulong GrabAttackBoard(int square, BoardStruct b)
+    {
+        throw new NotImplementedException();
+    }
 }

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using Unity.Collections;
@@ -30,6 +31,7 @@ namespace V6
             Transposition = new(26);
             sw = new();
         }
+
         public int SearchRec(int depth, int alpha, int beta, int consecutivePV) 
         {
             bool oneMoveChecked = false;
@@ -161,7 +163,52 @@ namespace V6
             return alpha;
         }
 
-        bool SearchTo(int depth) {
+        void PerfT(BoardStruct b) 
+        {
+            int depth = 4;
+            var results = new Dictionary<string, int[]>
+            {
+            {"nodes", new int[depth]},
+            {"captures", new int[depth]},
+            {"epCaptures", new int[depth]},
+            {"castles", new int[depth]},
+            {"promotions", new int[depth]},
+            {"checks", new int[depth]},
+            {"checkMates", new int[depth]},
+            {"gameEnds", new int[depth]}
+            };
+
+            BoardObj = new(b);
+            BoardObj.SetSearchObject(this);
+
+            for (int i = 1; i <= depth; i++) {
+                PerfTRec(results, 0, i);
+            }
+            
+            string resultStr = "Results:";
+            foreach (string key in results.Keys) {
+                resultStr += "\n" + key + ": [";
+                int[] bits = results[key];
+                for (int i = 0; i < bits.Count()-1; i++)
+                    resultStr += bits[i] + ", ";
+                resultStr += bits[^1] + "]";
+            }
+            Debug.Log(resultStr);
+        }
+
+        void PerfTRec(Dictionary<string, int[]> results, int depth, int depthFinal)
+        {
+            if (depth == depthFinal) {
+                results["nodes"][depthFinal]++;
+                return;
+            }
+            BoardObj.LegalMoves();
+            // AHHHHH
+            return;
+        }
+
+        bool SearchTo(int depth) 
+        {
             iterations = 0;
             PriorityQueue<Move, int> moves = BoardObj.LegalMoves();
             if (moves.Count == 0) {
@@ -228,7 +275,8 @@ namespace V6
             return best;
         }
 
-        public Move BestMoveToDepth(BoardStruct boardStruct, int depth) {
+        public Move BestMoveToDepth(BoardStruct boardStruct, int depth) 
+        {
             BoardObj = new(boardStruct);
             BoardObj.SetSearchObject(this);
             Transposition.ClearTable();

@@ -12,5 +12,6 @@ public abstract class ChessAbstract : MonoBehaviour
     public abstract Move GetMoveDrafted(BoardStruct b, int depth);
     public abstract double TimeFunc(string fName);
     public abstract ulong GrabBitBoard(string name, BoardStruct b);
+    public abstract ulong GrabAttackBoard(int square, BoardStruct b);
     public abstract Dictionary<string, int> GetPartCounts();
 }

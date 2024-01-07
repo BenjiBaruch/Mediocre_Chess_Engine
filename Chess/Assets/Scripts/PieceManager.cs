@@ -58,7 +58,8 @@ public class PieceManager : MonoBehaviour
     void Start()
     {
         // Grabs starting position from Board class
-        board = new(/*"r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - "*/);
+        // board = new();
+        board = new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         int[] intBoard = board.IntBoard;
         AITurn = false;
         pieces = new(32);
@@ -245,6 +246,8 @@ public class PieceManager : MonoBehaviour
 
     void DrawBitBoard()
     {
+        if (DisplayBitBoard.Equals("attack"))
+            return;
         ulong bitboard = CPU1.GrabBitBoard(DisplayBitBoard, board.ToStruct());
         for (int i = 0; i < 64; i++) {
             if ((bitboard & (1UL << i)) == 0)
@@ -286,7 +289,7 @@ public class PieceManager : MonoBehaviour
                 // Determine which tile the mouse is hovering over
                 if (mouseTile > -1) {
                     selectedPiece = null;
-                    foreach (PieceObject p in pieces) { // Enhanced for loops in C# use foreach keyword
+                    foreach (PieceObject p in pieces) { 
                         if (p.Position == mouseTile) {
                             // If mouse is hovering over a piece
                             // Select piece
@@ -302,8 +305,19 @@ public class PieceManager : MonoBehaviour
                     highlights[i].enabled = false;
                 }
                 if (selectedPiece != null) {
-                    foreach (int pos in board.HighlightPositions(selectedPiece.Position)) {
-                        highlights[pos].enabled = true;
+                    if (DisplayBitBoard.Equals("attack")) {
+                        ulong bitboard = CPU1.GrabAttackBoard(selectedPiece.Position, board.ToStruct());
+                        for (int i = 0; i < 64; i++) {
+                            if ((bitboard & (1UL << i)) == 0)
+                                highlights[i].enabled = false;
+                            else
+                                highlights[i].enabled = true;
+                        }
+                    }
+                    else {   
+                        foreach (int pos in board.HighlightPositions(selectedPiece.Position)) {
+                            highlights[pos].enabled = true;
+                        }
                     }
                 }
                 // Debug.Log(selectedPiece + ": " + mouseOffset);
