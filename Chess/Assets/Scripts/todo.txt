@@ -1,7 +1,9 @@
 To-do
 
 * Move gen precompuation.
-* Remove redundant move types
+* Magics
+* Remove EPSentry lookup tables (why did I add those in the first place?)
+* Add
 
 
 

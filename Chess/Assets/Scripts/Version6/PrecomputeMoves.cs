@@ -5,6 +5,7 @@ namespace V6
 {
     public static class PrecomputeMoves
     {
+        // Help from https://www.chessprogramming.org/Magic_Bitboards
         public static ulong[] KnightMoves;
         public static ulong[] KingMoves;
         public static ulong[] OrthBSlide;
@@ -13,13 +14,63 @@ namespace V6
         public static ulong[] DiagFSlide;
         public static ulong[] WhiteEPSentries;
         public static ulong[] BlackEPSentries;
+        static ulong[][] SlidingAttacks;
+        static ulong[] RookMagicValues;
+        static ulong[] BishopMagicValues;
+        static byte[] RookShifts;
+        static byte[] BishopShifts;
+        static Magic[] RookMagics;
+        static Magic[] BishopMagics;
+        readonly struct Magic
+        {
+            public Magic(int pos, ulong mask, ulong magic, int shift)
+            {
+                attacks = SlidingAttacks[pos];
+                this.mask = mask;
+                this.magic = magic;
+                this.shift = (byte)shift;
+            }
+            public readonly ulong[] attacks;
+            public readonly ulong mask;
+            public readonly ulong magic;
+            public readonly byte shift;
+            
+        }
         public static void ComputeMoveTables() 
         {
             ComputeKingTable();
             ComputeKnightTable();
             ComputeEnPassantInfo();
             ComputeSlideTables();
-        } 
+            LoadMagics();
+        }
+
+        static void LoadMagics()
+        {
+            RookMagics = new Magic[64];
+            BishopMagics = new Magic[64];
+            for (int i = 0; i < 64; i++) {
+                BishopMagics[i] = new(i, DiagBSlide[i], BishopMagicValues[i], BishopShifts[i]);
+                RookMagics[i] = new(i, OrthBSlide[i], RookMagicValues[i], RookShifts[i]);
+            }
+        }
+
+        public static ulong BishopAttackMap(int pos, ulong blockers)
+        {
+            Magic m = BishopMagics[pos];
+            blockers &= m.mask;
+            blockers *= m.magic;
+            blockers >>= m.shift;
+            return m.attacks[blockers];
+        }
+        public static ulong RookAttackMap(int pos, ulong blockers)
+        {
+            Magic m = RookMagics[pos];
+            blockers &= m.mask;
+            blockers *= m.magic;
+            blockers >>= m.shift;
+            return m.attacks[blockers];
+        }
 
         static void ComputeSlideTables() 
         {
@@ -54,16 +105,22 @@ namespace V6
 
             int safeFile = pos & 0b111;
             int safeRank = pos >> 3;
+
             for (int i = 0; i < 7; i++) {
-                pos += offset;
-                int x = pos & 0b111;
-                int y = pos >> 3;
-                if (x >= ((safeFile == 0) ? 0 : 1) &&
-                    x <= ((safeFile == 7) ? 7 : 6) &&
-                    y >= ((safeRank == 0) ? 0 : 1) &&
-                    y <= ((safeRank == 7) ? 7 : 6)) {
-                    ray |= 1UL << pos;
+                int x = (pos + offset) & 0b111;
+                int y = (pos + offset) >> 3;
+                if (((pos & 0b111) == 0 && ((offset + 16) % 8) == 7) ||
+                    ((pos & 0b111) == 7 && ((offset + 16) % 8) == 1) ||
+                    ((pos >> 3) == 0 && (offset / 4) < 0) ||
+                    ((pos >> 3) == 7 && (offset / 4) > 0) ||
+                    (x == 0 && safeFile > 0) ||
+                    (x == 7 && safeFile < 7) ||
+                    (y == 0 && safeRank > 0) ||
+                    (y == 7 && safeRank < 7)) {
+                    break;
                 }
+                pos += offset;
+                ray |= 1UL << pos;
             }
             return ray;
         }
@@ -72,14 +129,15 @@ namespace V6
         {
             ulong ray = 0UL;
             
-            int safeFile = pos & 0b111;
-            int safeRank = pos >> 3;
             for (int i = 0; i < 7; i++) {
+                if (((pos & 0b111) == 0 && ((offset + 16) % 8) == 7) ||
+                    ((pos & 0b111) == 7 && ((offset + 16) % 8) == 1) ||
+                    ((pos >> 3) == 0 && (offset / 4) < 0) ||
+                    ((pos >> 3) == 7 && (offset / 4) > 0)) {
+                    break;
+                }
                 pos += offset;
-                int x = pos & 0b111;
-                int y = pos >> 3;
-                if (x >= 0 && x <= 7 && y >= 0 && y <= 7)
-                    ray |= 1UL << pos;
+                ray |= 1UL << pos;
             }
             return ray;
         }

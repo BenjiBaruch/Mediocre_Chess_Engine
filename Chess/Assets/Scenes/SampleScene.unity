@@ -348,11 +348,12 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 60d46ea2e0113ea4fae5bea8f989bcf1, type: 3}
   PiecePrefab: {fileID: 1705669259}
   HighlightPrefab: {fileID: 1285854328}
-  Mode: 4
+  Mode: 0
   SearchDepth: 6
   TimeLimit: 4000
   CPU1: {fileID: 1729085309}
   CPU2: {fileID: 1993618399}
+  DisplayBitBoard: wp
 --- !u!4 &853432780
 Transform:
   m_ObjectHideFlags: 0
