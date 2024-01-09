@@ -1,4 +1,7 @@
+using System;
+using Unity.Mathematics;
 using UnityEditor.PackageManager;
+using UnityEngine.TextCore.Text;
 using Debug = UnityEngine.Debug;
 
 namespace V6
@@ -6,6 +9,7 @@ namespace V6
     public static class PrecomputeMoves
     {
         // Help from https://www.chessprogramming.org/Magic_Bitboards
+        // Help from https://analog-hors.github.io/site/magic-bitboards/
         public static ulong[] KnightMoves;
         public static ulong[] KingMoves;
         public static ulong[] OrthBSlide;
@@ -14,18 +18,22 @@ namespace V6
         public static ulong[] DiagFSlide;
         public static ulong[] WhiteEPSentries;
         public static ulong[] BlackEPSentries;
-        static ulong[][] SlidingAttacks;
+        static ulong[][] RookAttacks;
+        static ulong[][] BishopAttacks;
+        static ulong[][] BishopSubMasks;
+        static ulong[][] RookSubMasks;
         static ulong[] RookMagicValues;
         static ulong[] BishopMagicValues;
         static byte[] RookShifts;
         static byte[] BishopShifts;
         static Magic[] RookMagics;
         static Magic[] BishopMagics;
+        static readonly System.Random rng = new();
         readonly struct Magic
         {
-            public Magic(int pos, ulong mask, ulong magic, int shift)
+            public Magic(ulong[] attacks, ulong mask, ulong magic, int shift)
             {
-                attacks = SlidingAttacks[pos];
+                this.attacks = attacks;
                 this.mask = mask;
                 this.magic = magic;
                 this.shift = (byte)shift;
@@ -50,8 +58,71 @@ namespace V6
             RookMagics = new Magic[64];
             BishopMagics = new Magic[64];
             for (int i = 0; i < 64; i++) {
-                BishopMagics[i] = new(i, DiagBSlide[i], BishopMagicValues[i], BishopShifts[i]);
-                RookMagics[i] = new(i, OrthBSlide[i], RookMagicValues[i], RookShifts[i]);
+                BishopMagics[i] = new(BishopAttacks[i], DiagBSlide[i], BishopMagicValues[i], BishopShifts[i]);
+                RookMagics[i] = new(RookAttacks[i], OrthBSlide[i], RookMagicValues[i], RookShifts[i]);
+            }
+        }
+
+        static void FindMagic(int piece, int square, byte maxLen)
+        {
+            ulong mask;
+            if (piece == Piece.Bishop)
+                mask = DiagBSlide[square];
+            else
+                mask = OrthBSlide[square];
+            byte len = byte.MaxValue;
+            byte[] buffer = new byte[8];
+            while (len > maxLen) {
+                rng.NextBytes(buffer);
+                ulong magic = (ulong) BitConverter.ToInt64(buffer, 0);
+
+            }
+        }
+        // Return tuple:
+        // bool: magic is valid
+        // ulong: table of attacks
+        // byte: shift
+        static Tuple<bool, ulong[], byte> TestMagic(ulong magic, bool isBishop, int pos, byte maxLen)
+        {
+            ulong[] masks = isBishop ? BishopSubMasks[pos] : RookSubMasks[pos];
+            foreach (ulong mask in masks) {
+
+            }
+            return new(false, new ulong[masks.Length], 0);
+        }
+
+        static void GenerateSubMasks()
+        {
+            BishopSubMasks = new ulong[64][];
+            RookSubMasks = new ulong[64][];
+            for (int pos = 0; pos < 64; pos++) {
+                ulong bishopMask = DiagBSlide[pos];
+                int bits = math.countbits(bishopMask);
+                ulong values = (ulong) (1 << bits);
+                BishopSubMasks[pos] = new ulong[values];
+                for (ulong i = 0; i < values; i++) {
+                    ulong bishopMaskCopy = bishopMask;
+                    ulong subMask = 0UL;
+                    for (int bit = 0; bit < bits; bit++) {
+                        subMask |= ((i >> bit) & 1) << math.tzcnt(bishopMaskCopy);
+                        bishopMaskCopy &= bishopMaskCopy - 1;
+                    }
+                    BishopSubMasks[pos][i] = subMask;
+                }
+
+                ulong rookMask = OrthBSlide[pos];
+                bits = math.countbits(rookMask);
+                values = (ulong) (1 << bits);
+                RookSubMasks[pos] = new ulong[values];
+                for (ulong i = 0; i < values; i++) {
+                    ulong rookMaskCopy = rookMask;
+                    ulong subMask = 0UL;
+                    for (int bit = 0; bit < bits; bit++) {
+                        subMask |= ((i >> bit) & 1) << math.tzcnt(rookMaskCopy);
+                        rookMaskCopy &= rookMaskCopy - 1;
+                    }
+                    RookSubMasks[pos][i] = subMask;
+                }
             }
         }
 

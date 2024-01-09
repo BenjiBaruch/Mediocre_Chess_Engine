@@ -353,7 +353,7 @@ MonoBehaviour:
   TimeLimit: 4000
   CPU1: {fileID: 1729085309}
   CPU2: {fileID: 1993618399}
-  DisplayBitBoard: wp
+  DisplayBitBoard: attack
 --- !u!4 &853432780
 Transform:
   m_ObjectHideFlags: 0
