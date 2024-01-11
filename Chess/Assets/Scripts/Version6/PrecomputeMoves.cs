@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEditor.PackageManager;
 using UnityEngine.TextCore.Text;
@@ -50,7 +53,19 @@ namespace V6
             ComputeKnightTable();
             ComputeEnPassantInfo();
             ComputeSlideTables();
-            LoadMagics();
+            //LoadMagics();
+
+            ComputeSlideTables();
+            GenerateSubMasks();
+            FindMagic(Piece.Bishop, 36, 12, 1000);
+            Debug.Log("I did the thing");
+        }
+
+        static void Main(string[] args)
+        {
+            ComputeSlideTables();
+            GenerateSubMasks();
+            FindMagic(Piece.Bishop, 36, 12, 100);
         }
 
         static void LoadMagics()
@@ -63,36 +78,78 @@ namespace V6
             }
         }
 
-        static void FindMagic(int piece, int square, byte maxLen)
+        static void FindAllMagics(int len, int triesPer)
         {
-            ulong mask;
-            if (piece == Piece.Bishop)
-                mask = DiagBSlide[square];
-            else
-                mask = OrthBSlide[square];
-            byte len = byte.MaxValue;
+            for (int i = 0; i < 64; i++) {
+                if (BishopShifts[i] < (byte)(64 - len)) {
+                    FindMagic(Piece.Bishop, i, (byte)len, triesPer);
+                }
+                if (RookShifts[i] < (byte)(64 - len)) {
+                    FindMagic(Piece.Rook, i, (byte)len, triesPer);
+                }
+            }
+        }
+
+        static bool FindMagic(int piece, int square, byte len, int tries)
+        {
             byte[] buffer = new byte[8];
-            while (len > maxLen) {
+            for (int i = 0; i < tries; i++) {
                 rng.NextBytes(buffer);
                 ulong magic = (ulong) BitConverter.ToInt64(buffer, 0);
-
+                rng.NextBytes(buffer);
+                magic *= (ulong) BitConverter.ToInt64(buffer, 0);
+                rng.NextBytes(buffer);
+                magic *= (ulong) BitConverter.ToInt64(buffer, 0);
+                #nullable enable
+                ulong[]? table = TestMagic(magic, piece == Piece.Bishop, square, len);
+                if (table != null) {
+                    string fileName;
+                    if (piece == Piece.Bishop) {
+                        BishopAttacks[square] = table;
+                        BishopShifts[square] = (byte)(64 - len);
+                        BishopMagicValues[square] = magic;
+                        fileName = "Version6\\MagicTables\\b" + (64 - len) + "," + square + ".txt";
+                    }
+                    else {
+                        RookAttacks[square] = table;
+                        BishopShifts[square] = (byte)(64 - len);
+                        RookMagicValues[square] = magic;
+                        fileName = "Version6\\MagicTables\\r" + (64 - len) + "," + square + ".txt";
+                    }
+                    // help from https://stackoverflow.com/questions/13023147/how-to-write-contents-of-an-array-to-a-text-file-c-sharp
+                    System.IO.File.WriteAllLines(fileName, table.Select(mask => string.Format("{0:x4}", mask)));
+                    Debug.Log(string.Format("{0:x4}", magic));
+                    return true;
+                }
+                #nullable disable
             }
+            return false;
         }
-        // Return tuple:
-        // bool: magic is valid
-        // ulong: table of attacks
-        // byte: shift
-        static Tuple<bool, ulong[], byte> TestMagic(ulong magic, bool isBishop, int pos, byte maxLen)
+        #nullable enable
+        static ulong[]? TestMagic(ulong magic, bool isBishop, int pos, byte len)
         {
             ulong[] masks = isBishop ? BishopSubMasks[pos] : RookSubMasks[pos];
+            int shift = 64 - len;
+            ulong[] table = new ulong[1 << len];
             foreach (ulong mask in masks) {
-
+                ulong key = (mask * magic) >> shift;
+                if (table[key] != 0)
+                    return null;
+                else
+                    table[key] = mask;
             }
-            return new(false, new ulong[masks.Length], 0);
-        }
+            return table;
+        } 
+        #nullable disable
 
         static void GenerateSubMasks()
         {
+            RookAttacks = new ulong[64][];
+            BishopAttacks = new ulong[64][];
+            RookShifts = new byte[64];
+            BishopShifts = new byte[64];
+            RookMagicValues = new ulong[64];
+            BishopMagicValues = new ulong[64];
             BishopSubMasks = new ulong[64][];
             RookSubMasks = new ulong[64][];
             for (int pos = 0; pos < 64; pos++) {

@@ -53,12 +53,19 @@ public class PieceManager : MonoBehaviour
     int highlightedTile;
     int doMoveIn;
     bool AITurn;
+    bool actuallyDoingThings;
 
     // Start is called before the first frame update
     void Start()
     {
+        actuallyDoingThings = false;
+        CPU1.Initialize(true);
+    }
+
+    void StartGame() {
         // Grabs starting position from Board class
         // board = new();
+        actuallyDoingThings = true;
         board = new("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
         int[] intBoard = board.IntBoard;
         AITurn = false;
@@ -265,6 +272,7 @@ public class PieceManager : MonoBehaviour
 
     void Update() 
     {
+        if (!actuallyDoingThings) return;
         // Unity calls Update() method every frame.
 
         // Help from https://docs.unity3d.com/ScriptReference/Input.GetMouseButton.html
