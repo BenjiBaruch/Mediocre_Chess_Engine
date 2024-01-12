@@ -57,15 +57,8 @@ namespace V6
 
             ComputeSlideTables();
             GenerateSubMasks();
-            FindMagic(Piece.Bishop, 36, 12, 1000);
+            FindMagic(Piece.Bishop, 36, 9, 1000);
             Debug.Log("I did the thing");
-        }
-
-        static void Main(string[] args)
-        {
-            ComputeSlideTables();
-            GenerateSubMasks();
-            FindMagic(Piece.Bishop, 36, 12, 100);
         }
 
         static void LoadMagics()
@@ -103,18 +96,18 @@ namespace V6
                 #nullable enable
                 ulong[]? table = TestMagic(magic, piece == Piece.Bishop, square, len);
                 if (table != null) {
-                    string fileName;
+                    string fileName = "Assets\\Scripts\\Version6\\MagicTables\\";
                     if (piece == Piece.Bishop) {
                         BishopAttacks[square] = table;
                         BishopShifts[square] = (byte)(64 - len);
                         BishopMagicValues[square] = magic;
-                        fileName = "Version6\\MagicTables\\b" + (64 - len) + "," + square + ".txt";
+                        fileName += "b" + (64 - len) + "," + square + ".txt";
                     }
                     else {
                         RookAttacks[square] = table;
                         BishopShifts[square] = (byte)(64 - len);
                         RookMagicValues[square] = magic;
-                        fileName = "Version6\\MagicTables\\r" + (64 - len) + "," + square + ".txt";
+                        fileName += "r" + (64 - len) + "," + square + ".txt";
                     }
                     // help from https://stackoverflow.com/questions/13023147/how-to-write-contents-of-an-array-to-a-text-file-c-sharp
                     System.IO.File.WriteAllLines(fileName, table.Select(mask => string.Format("{0:x4}", mask)));
